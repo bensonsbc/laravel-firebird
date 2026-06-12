@@ -173,6 +173,57 @@ class GrammarTest extends TestCase
         );
     }
 
+    #[Test]
+    public function it_compiles_upsert_using_firebird_merge()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $grammar = $connection->getQueryGrammar();
+        $query = $connection->table('cliente');
+
+        $sql = $grammar->compileUpsert($query, [
+            [
+                'clienteid' => 1,
+                'nome' => 'Anna',
+            ],
+            [
+                'clienteid' => 2,
+                'nome' => 'Bruno',
+            ],
+        ], ['clienteid'], ['nome']);
+
+        $this->assertSame(
+            'merge into CLIENTE T using (select cast(? as bigint) as CLIENTEID, cast(? as varchar(4)) as NOME from RDB$DATABASE union all select cast(? as bigint) as CLIENTEID, cast(? as varchar(5)) as NOME from RDB$DATABASE) S on S.CLIENTEID = T.CLIENTEID when matched then update set NOME = S.NOME when not matched then insert (CLIENTEID, NOME) values (S.CLIENTEID, S.NOME)',
+            $sql
+        );
+    }
+
+    #[Test]
+    public function it_uses_integer_casts_for_dialect_one_merge_sources()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+            'dialect' => '1',
+        ]);
+
+        $grammar = $connection->getQueryGrammar();
+        $query = $connection->table('cliente');
+
+        $sql = $grammar->compileUpsert($query, [
+            [
+                'clienteid' => 1,
+                'nome' => 'Anna',
+            ],
+        ], ['clienteid'], ['nome']);
+
+        $this->assertStringContainsString('cast(? as integer) as CLIENTEID', $sql);
+        $this->assertStringNotContainsString('cast(? as bigint) as CLIENTEID', $sql);
+    }
+
     protected function makeConnection(array $config = [])
     {
         return new FirebirdConnection(

@@ -6,6 +6,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\Grammars\Grammar;
 use Illuminate\Database\Query\JoinLateralClause;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class FirebirdGrammar extends Grammar
@@ -483,6 +484,76 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile an "upsert" statement into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $values
+     * @param  array  $uniqueBy
+     * @param  array  $update
+     * @return string
+     */
+    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update)
+    {
+        $columns = array_keys(array_first($values));
+        $columnList = $this->columnize($columns);
+        $table = $this->wrapTable($query->from);
+        $source = $this->compileUpsertSource($values, $columns);
+
+        $on = (new Collection($uniqueBy))
+            ->map(fn ($column) => $this->wrap('S.'.$column).' = '.$this->wrap('T.'.$column))
+            ->implode(' and ');
+
+        $sql = "merge into {$table} T using ({$source}) S on {$on}";
+
+        if ($update) {
+            $assignments = (new Collection($update))
+                ->map(fn ($value, $key) => is_int($key)
+                    ? $this->wrap($value).' = '.$this->wrap('S.'.$value)
+                    : $this->wrap($key).' = '.$this->parameter($value)
+                )
+                ->implode(', ');
+
+            $sql .= " when matched then update set {$assignments}";
+        }
+
+        $insertValues = implode(', ', array_map(
+            fn ($column) => $this->wrap('S.'.$column),
+            $columns
+        ));
+
+        return "{$sql} when not matched then insert ({$columnList}) values ({$insertValues})";
+    }
+
+    /**
+     * Compile Firebird's derived source table for a merge statement.
+     *
+     * @param  array  $values
+     * @param  array  $columns
+     * @return string
+     */
+    protected function compileUpsertSource(array $values, array $columns)
+    {
+        return (new Collection($values))
+            ->map(fn ($record) => 'select '.$this->compileUpsertSourceColumns($record, $columns).' from RDB$DATABASE')
+            ->implode(' union all ');
+    }
+
+    /**
+     * Compile one row of the merge source table.
+     *
+     * @param  array  $record
+     * @param  array  $columns
+     * @return string
+     */
+    protected function compileUpsertSourceColumns(array $record, array $columns)
+    {
+        return implode(', ', array_map(
+            fn ($column) => $this->compileTypedInsertOrIgnoreParameter($column, $record[$column]).' as '.$this->wrap($column),
+            $columns
+        ));
+    }
+
+    /**
      * Resolve columns that should determine whether a row already exists.
      *
      * @param  array  $columns
@@ -527,7 +598,7 @@ class FirebirdGrammar extends Grammar
         }
 
         if (is_int($value)) {
-            return 'cast(? as bigint)';
+            return 'cast(? as '.$this->integerParameterType().')';
         }
 
         if (is_float($value)) {
@@ -542,5 +613,17 @@ class FirebirdGrammar extends Grammar
         $length = min($length, 8191);
 
         return sprintf('cast(? as varchar(%d))', $length);
+    }
+
+    /**
+     * Resolve a Firebird integer type that is valid for the configured dialect.
+     *
+     * @return string
+     */
+    protected function integerParameterType()
+    {
+        return (string) $this->connection->getConfig('dialect') === '1'
+            ? 'integer'
+            : 'bigint';
     }
 }
