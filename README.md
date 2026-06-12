@@ -94,6 +94,8 @@ O valor padrao ainda e manter identificadores entre aspas, preservando o comport
 - **`upsert()`** compila para `MERGE` com fonte derivada tipada.
 - **`whereLike`** e case sensitive por padrao no Firebird; o modo case insensitive do Laravel e emulado com `UPPER()` dos dois lados.
 - **Update/delete com joins** localizam as linhas alvo via `RDB$DB_KEY`.
+- **Listas `IN` com mais de 1499 itens** sao divididas em multiplos grupos `IN` automaticamente (servidores antes do Firebird 5 rejeitam listas maiores), o que mantem o eager loading do Eloquent funcionando com resultados grandes.
+- **Limites em relacoes eager (`->limit()` em `with()`)** compilam com `ROW_NUMBER()` no Firebird 3+; em servidores sem window functions o driver lanca uma excecao clara.
 
 ## Limitacoes conhecidas
 
