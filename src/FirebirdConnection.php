@@ -8,6 +8,7 @@ use Benson\LaravelFirebird\Query\Processors\FirebirdProcessor as FirebirdQueryPr
 use Benson\LaravelFirebird\Schema\Builder as FirebirdSchemaBuilder;
 use Benson\LaravelFirebird\Schema\Grammars\FirebirdGrammar as FirebirdSchemaGrammar;
 use Closure;
+use Exception;
 use Illuminate\Database\Connection as DatabaseConnection;
 use Illuminate\Support\Str;
 use PDO;
@@ -32,7 +33,38 @@ class FirebirdConnection extends DatabaseConnection
     {
         $version = $this->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
 
-        return Str::match('/\(remote server\), version "\w+-V(\d+\.\d+\.\d+)/', $version);
+        return Str::match('/\(remote server\), version "\w+-V(\d+\.\d+\.\d+)/', $version)
+            ?: Str::match('/\w+-V(\d+\.\d+\.\d+)/', $version)
+            ?: $version;
+    }
+
+    /**
+     * Determine if the given database exception was caused by a unique constraint violation.
+     *
+     * @param  \Exception  $exception
+     * @return bool
+     */
+    protected function isUniqueConstraintError(Exception $exception)
+    {
+        return (bool) preg_match(
+            '/violation of PRIMARY or UNIQUE KEY constraint|attempt to store duplicate value/i',
+            $exception->getMessage()
+        );
+    }
+
+    /**
+     * Extract the index that caused a unique constraint violation.
+     *
+     * @param  \Exception  $exception
+     * @return array{index: string|null, columns: list<string>}
+     */
+    protected function parseUniqueConstraintViolation(Exception $exception): array
+    {
+        if (preg_match('/(?:constraint|unique index) "([^"]+)"/i', $exception->getMessage(), $matches)) {
+            return ['index' => $matches[1], 'columns' => []];
+        }
+
+        return ['index' => null, 'columns' => []];
     }
 
     /**

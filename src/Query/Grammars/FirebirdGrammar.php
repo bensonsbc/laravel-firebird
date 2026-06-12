@@ -195,7 +195,9 @@ class FirebirdGrammar extends Grammar
      */
     protected function isAlreadyQuoted($value)
     {
-        return str_starts_with($value, '"') && str_ends_with($value, '"');
+        // Require a single fully quoted identifier; embedded quotes must be
+        // escaped so values like `"a" or "b"` are not passed through raw.
+        return preg_match('/^"(?:[^"]|"")*"$/', $value) === 1;
     }
 
     /**
@@ -206,7 +208,9 @@ class FirebirdGrammar extends Grammar
      */
     protected function looksLikeFunctionCall($value)
     {
-        return preg_match('/^[A-Za-z_][A-Za-z0-9_$]*\s*\(.*\)$/', $value) === 1;
+        // Quotes and statement separators are rejected so this passthrough
+        // cannot smuggle arbitrary SQL through identifier wrapping.
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_$]*\s*\([^;\'"]*\)$/', $value) === 1;
     }
 
     /**
@@ -370,7 +374,7 @@ class FirebirdGrammar extends Grammar
         }
 
         if ($this->usesFirstSkipPagination()) {
-            return ltrim($sql.' '.$this->compileUnionRows($query));
+            return trim($sql.' '.$this->compileUnionRows($query));
         }
 
         if (isset($query->unionOffset)) {
@@ -381,7 +385,7 @@ class FirebirdGrammar extends Grammar
             $sql .= ' '.$this->compileLimit($query, $query->unionLimit);
         }
 
-        return ltrim($sql);
+        return trim($sql);
     }
 
     /**
@@ -453,6 +457,15 @@ class FirebirdGrammar extends Grammar
      */
     public function compileExists(Builder $query)
     {
+        // FIRST applies only to the first branch of a union, so union queries
+        // must be wrapped in a derived table before limiting.
+        if ($query->unions) {
+            return sprintf(
+                'select first 1 1 as EXISTS_RESULT from (%s) FB_EXISTS',
+                $this->compileSelect($query)
+            );
+        }
+
         $existsQuery = clone $query;
 
         $existsQuery->columns = [new Expression('1 as EXISTS_RESULT')];
@@ -571,7 +584,7 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile a truncate table statement into SQL.
      *
-     * Firebird servers older than 2.5 do not support TRUNCATE TABLE.
+     * Firebird does not support TRUNCATE TABLE, so emulate it with DELETE.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @return array
@@ -689,61 +702,19 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
-     * Compile an insert ignore statement into SQL.
-     *
-     * @param  \Illuminate\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
-     */
-    public function compileInsertOrIgnore(Builder $query, array $values)
-    {
-        if (! is_array(reset($values))) {
-            $values = [$values];
-        }
-
-        if (count($values) !== 1) {
-            return $this->compileInsert($query, $values);
-        }
-
-        $row = $values[0];
-        $columns = array_keys($row);
-        $table = $this->wrapTable($query->from);
-        $matchingColumns = $this->resolveInsertOrIgnoreMatchingColumns($columns);
-
-        $selectColumns = implode(', ', array_map(
-            fn ($column) => sprintf(
-                '%s as %s',
-                $this->compileTypedInsertOrIgnoreParameter($column, $row[$column]),
-                $this->wrap($column)
-            ),
-            $columns
-        ));
-
-        $whereNotExists = implode(' and ', array_map(
-            fn ($column) => $this->wrap('T.'.$column).' = '.$this->wrap('V.'.$column),
-            $matchingColumns
-        ));
-
-        return sprintf(
-            'insert into %s (%s) select %s from (select %s from RDB$DATABASE) V where not exists (select 1 from %s T where %s)',
-            $table,
-            $this->columnize($columns),
-            implode(', ', array_map(fn ($column) => $this->wrap('V.'.$column), $columns)),
-            $selectColumns,
-            $table,
-            $whereNotExists
-        );
-    }
-
-    /**
      * Compile an insert ignore statement using a subquery into SQL.
+     *
+     * Each unique column set fully covered by the insert becomes a NOT EXISTS
+     * guard; without resolved unique sets there is nothing to ignore and a
+     * plain insert is compiled.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @param  array  $columns
      * @param  string  $sql
+     * @param  list<list<string>>  $uniqueColumnSets
      * @return string
      */
-    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql)
+    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql, array $uniqueColumnSets = [])
     {
         $table = $this->wrapTable($query->from);
 
@@ -751,20 +722,25 @@ class FirebirdGrammar extends Grammar
             return "insert into {$table} {$sql}";
         }
 
-        $matchingColumns = $this->resolveInsertOrIgnoreMatchingColumns($columns);
+        if ($uniqueColumnSets === []) {
+            return sprintf('insert into %s (%s) %s', $table, $this->columnize($columns), $sql);
+        }
 
-        $whereNotExists = implode(' and ', array_map(
-            fn ($column) => $this->wrap('T.'.$column).' = '.$this->wrap('V.'.$column),
-            $matchingColumns
-        ));
+        $whereNotExists = implode(' and ', array_map(function ($set) use ($table) {
+            $conditions = implode(' and ', array_map(
+                fn ($column) => $this->wrap('T.'.$column).' = '.$this->wrap('V.'.$column),
+                $set
+            ));
+
+            return "not exists (select 1 from {$table} T where {$conditions})";
+        }, $uniqueColumnSets));
 
         return sprintf(
-            'insert into %s (%s) select %s from (%s) V where not exists (select 1 from %s T where %s)',
+            'insert into %s (%s) select %s from (%s) V where %s',
             $table,
             $this->columnize($columns),
             implode(', ', array_map(fn ($column) => $this->wrap('V.'.$column), $columns)),
             $sql,
-            $table,
             $whereNotExists
         );
     }
@@ -834,51 +810,20 @@ class FirebirdGrammar extends Grammar
     protected function compileUpsertSourceColumns(array $record, array $columns)
     {
         return implode(', ', array_map(
-            fn ($column) => $this->compileTypedInsertOrIgnoreParameter($column, $record[$column]).' as '.$this->wrap($column),
+            fn ($column) => $this->compileTypedSourceParameter($record[$column]).' as '.$this->wrap($column),
             $columns
         ));
     }
 
     /**
-     * Resolve columns that should determine whether a row already exists.
+     * Compile a typed parameter for Firebird's derived source tables, which
+     * cannot infer parameter types on their own.
      *
-     * @param  array  $columns
-     * @return array
-     */
-    protected function resolveInsertOrIgnoreMatchingColumns(array $columns)
-    {
-        $normalized = array_map(fn ($column) => Str::lower($column), $columns);
-
-        foreach (['key', 'id'] as $preferredColumn) {
-            $index = array_search($preferredColumn, $normalized, true);
-
-            if ($index !== false) {
-                return [$columns[$index]];
-            }
-        }
-
-        return $columns;
-    }
-
-    /**
-     * Compile a typed parameter for Firebird's derived insert source.
-     *
-     * @param  string  $column
      * @param  mixed  $value
      * @return string
      */
-    protected function compileTypedInsertOrIgnoreParameter($column, $value)
+    protected function compileTypedSourceParameter($value)
     {
-        $normalizedColumn = Str::lower($column);
-
-        if (in_array($normalizedColumn, ['key', 'owner'], true)) {
-            return 'cast(? as varchar(255))';
-        }
-
-        if ($normalizedColumn === 'expiration') {
-            return 'cast(? as integer)';
-        }
-
         if ($value === null) {
             return 'cast(? as varchar(255))';
         }

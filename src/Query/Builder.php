@@ -2,13 +2,17 @@
 
 namespace Benson\LaravelFirebird\Query;
 
+use Benson\LaravelFirebird\Concerns\DiscoversAutoIncrementGenerators;
 use DateTimeInterface;
 use Illuminate\Database\Query\Builder as BaseBuilder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class Builder extends BaseBuilder
 {
+    use DiscoversAutoIncrementGenerators;
+
     /**
      * Insert new records into the database.
      *
@@ -49,6 +53,10 @@ class Builder extends BaseBuilder
     /**
      * Insert new records into the database while ignoring duplicates.
      *
+     * Rows that violate a unique constraint are skipped. Firebird rolls back
+     * only the failed statement, so the remaining rows can still be inserted
+     * inside the same transaction.
+     *
      * @return int<0, max>
      */
     public function insertOrIgnore(array $values)
@@ -58,13 +66,13 @@ class Builder extends BaseBuilder
         }
 
         if (! is_array(Arr::first($values))) {
-            return parent::insertOrIgnore($values);
-        }
+            $values = [$values];
+        } else {
+            foreach ($values as $key => $value) {
+                ksort($value);
 
-        foreach ($values as $key => $value) {
-            ksort($value);
-
-            $values[$key] = $value;
+                $values[$key] = $value;
+            }
         }
 
         $this->applyBeforeQueryCallbacks();
@@ -73,16 +81,81 @@ class Builder extends BaseBuilder
             $affected = 0;
 
             foreach ($values as $record) {
-                $sql = $this->grammar->compileInsertOrIgnore($this, $record);
-
-                $affected += $this->connection->affectingStatement(
-                    $sql,
-                    $this->cleanBindings(array_values($record))
-                );
+                try {
+                    $affected += $this->connection->affectingStatement(
+                        $this->grammar->compileInsert($this, $record),
+                        $this->cleanBindings(array_values($record))
+                    );
+                } catch (UniqueConstraintViolationException) {
+                    //
+                }
             }
 
             return $affected;
         });
+    }
+
+    /**
+     * Insert new records into the table using a subquery while ignoring errors.
+     *
+     * @param  \Closure|\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<*>|string  $query
+     * @return int
+     */
+    public function insertOrIgnoreUsing(array $columns, $query)
+    {
+        $this->applyBeforeQueryCallbacks();
+
+        [$sql, $bindings] = $this->createSub($query);
+
+        return $this->connection->affectingStatement(
+            $this->grammar->compileInsertOrIgnoreUsing(
+                $this, $columns, $sql, $this->uniqueConstraintColumnSets($columns)
+            ),
+            $this->cleanBindings($bindings)
+        );
+    }
+
+    /**
+     * Resolve the table's unique column sets that are covered by the insert.
+     *
+     * @param  array  $columns
+     * @return list<list<string>>
+     */
+    protected function uniqueConstraintColumnSets(array $columns)
+    {
+        if (! is_string($this->from)) {
+            return [];
+        }
+
+        $table = preg_split('/\s+as\s+/i', $this->from)[0];
+
+        $normalized = [];
+
+        foreach ($columns as $column) {
+            $normalized[Str::lower($column)] = $column;
+        }
+
+        $sets = [];
+
+        foreach ($this->connection->getSchemaBuilder()->getIndexes($table) as $index) {
+            if (! ($index['unique'] ?? false)) {
+                continue;
+            }
+
+            $set = [];
+
+            foreach ($index['columns'] as $column) {
+                if (! array_key_exists($column, $normalized)) {
+                    continue 2;
+                }
+
+                $set[] = $normalized[$column];
+            }
+
+            $sets[] = $set;
+        }
+
+        return array_values(array_unique($sets, SORT_REGULAR));
     }
 
     /**
@@ -266,41 +339,4 @@ class Builder extends BaseBuilder
         return $this->procedure($procedure, $bindings);
     }
 
-    /**
-     * Discover generators used by insert triggers on a table.
-     *
-     * @param  string  $table
-     * @return list<string>
-     */
-    protected function autoIncrementGeneratorsForTable($table)
-    {
-        $generators = $this->connection->select(
-            'select distinct trim(d.rdb$depended_on_name) as name '
-            .'from rdb$triggers t '
-            .'join rdb$dependencies d on d.rdb$dependent_name = t.rdb$trigger_name '
-            .'join rdb$generators g on g.rdb$generator_name = d.rdb$depended_on_name '
-            .'where trim(t.rdb$relation_name) = ? '
-            .'and (t.rdb$system_flag is null or t.rdb$system_flag = 0)',
-            [$this->normalizeObjectName($table)]
-        );
-
-        return array_values(array_filter(array_map(function ($generator) {
-            $generator = (array) $generator;
-
-            return $generator['name'] ?? $generator['NAME'] ?? null;
-        }, $generators)));
-    }
-
-    /**
-     * Normalize a database object lookup for legacy uppercase schemas.
-     *
-     * @param  string  $name
-     * @return string
-     */
-    protected function normalizeObjectName($name)
-    {
-        return $this->connection->getConfig('uppercase_identifiers', false) === true
-            ? Str::upper($name)
-            : $name;
-    }
 }

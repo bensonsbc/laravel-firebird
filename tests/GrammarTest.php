@@ -167,7 +167,7 @@ class GrammarTest extends TestCase
     }
 
     #[Test]
-    public function it_compiles_single_row_insert_or_ignore_for_firebird()
+    public function it_compiles_insert_or_ignore_using_with_unique_column_sets()
     {
         $connection = $this->makeConnection([
             'quote_identifiers' => false,
@@ -175,16 +175,58 @@ class GrammarTest extends TestCase
         ]);
 
         $grammar = $connection->getQueryGrammar();
-        $query = $connection->table('cache');
+        $query = $connection->table('users');
 
-        $sql = $grammar->compileInsertOrIgnore($query, [
-            'key' => 'rate-limit',
-            'value' => 'yes',
-            'expiration' => 60,
-        ]);
+        $sql = $grammar->compileInsertOrIgnoreUsing(
+            $query,
+            ['id', 'email'],
+            'select 1, \'a\' from RDB$DATABASE',
+            [['id'], ['email']]
+        );
 
         $this->assertSame(
-            'insert into CACHE ("KEY", "VALUE", EXPIRATION) select V."KEY", V."VALUE", V.EXPIRATION from (select cast(? as varchar(255)) as "KEY", cast(? as varchar(3)) as "VALUE", cast(? as integer) as EXPIRATION from RDB$DATABASE) V where not exists (select 1 from CACHE T where T."KEY" = V."KEY")',
+            'insert into USERS (ID, EMAIL) select V.ID, V.EMAIL from (select 1, \'a\' from RDB$DATABASE) V '
+            .'where not exists (select 1 from USERS T where T.ID = V.ID) '
+            .'and not exists (select 1 from USERS T where T.EMAIL = V.EMAIL)',
+            $sql
+        );
+    }
+
+    #[Test]
+    public function it_compiles_insert_or_ignore_using_without_unique_column_sets_as_a_plain_insert()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $grammar = $connection->getQueryGrammar();
+        $query = $connection->table('users');
+
+        $sql = $grammar->compileInsertOrIgnoreUsing($query, ['id'], 'select 1 from RDB$DATABASE');
+
+        $this->assertSame('insert into USERS (ID) select 1 from RDB$DATABASE', $sql);
+    }
+
+    #[Test]
+    public function it_compiles_exists_for_union_queries_with_an_outer_first()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $grammar = $connection->getQueryGrammar();
+        $query = $connection->table('cliente')
+            ->select('clienteid')
+            ->union($connection->table('pedido')->select('clienteid'));
+
+        $sql = $grammar->compileExists($query);
+
+        $this->assertSame(
+            'select first 1 1 as EXISTS_RESULT from ('
+            .'select * from (select CLIENTEID from CLIENTE) union select * from (select CLIENTEID from PEDIDO)'
+            .') FB_EXISTS',
             $sql
         );
     }
