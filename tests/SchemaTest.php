@@ -128,6 +128,19 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_toggle_foreign_key_constraints_as_a_noop()
+    {
+        $this->assertTrue(Schema::disableForeignKeyConstraints());
+        $this->assertTrue(Schema::enableForeignKeyConstraints());
+
+        $result = Schema::withoutForeignKeyConstraints(function () {
+            return 'callback-result';
+        });
+
+        $this->assertSame('callback-result', $result);
+    }
+
+    #[Test]
     public function it_has_column()
     {
         $this->assertTrue(Schema::hasColumn('users', 'id'));

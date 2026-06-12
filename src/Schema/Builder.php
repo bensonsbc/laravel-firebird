@@ -65,6 +65,30 @@ class Builder extends BaseBuilder
     }
 
     /**
+     * Enable foreign key constraints.
+     *
+     * Firebird does not expose a connection-level FK toggle.
+     *
+     * @return bool
+     */
+    public function enableForeignKeyConstraints()
+    {
+        return true;
+    }
+
+    /**
+     * Disable foreign key constraints.
+     *
+     * Firebird does not expose a connection-level FK toggle.
+     *
+     * @return bool
+     */
+    public function disableForeignKeyConstraints()
+    {
+        return true;
+    }
+
+    /**
      * Drop the generator convention created by Firebird schema auto-increments.
      *
      * @param  string  $table
