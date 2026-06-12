@@ -257,6 +257,50 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a column drop command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return list<string>
+     */
+    public function compileDropColumn(Blueprint $blueprint, Fluent $command)
+    {
+        return array_map(
+            fn ($column) => 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP '.$this->wrap($column),
+            $command->columns
+        );
+    }
+
+    /**
+     * Compile a rename column command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileRenameColumn(Blueprint $blueprint, Fluent $command)
+    {
+        return sprintf(
+            'ALTER TABLE %s ALTER %s TO %s',
+            $this->wrapTable($blueprint),
+            $this->wrap($command->from),
+            $this->wrap($command->to),
+        );
+    }
+
+    /**
+     * Compile a rename table command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileRename(Blueprint $blueprint, Fluent $command)
+    {
+        throw new \LogicException('This database driver does not support renaming tables.');
+    }
+
+    /**
      * Compile a primary key command.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint

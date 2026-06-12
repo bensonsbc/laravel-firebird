@@ -121,6 +121,84 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_drop_columns_from_a_table()
+    {
+        Schema::dropIfExists('foo_drop_cols');
+
+        try {
+            Schema::create('foo_drop_cols', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('name');
+                $table->string('notes')->nullable();
+            });
+
+            $this->assertTrue(Schema::hasColumns('foo_drop_cols', ['id', 'name', 'notes']));
+
+            Schema::table('foo_drop_cols', function (Blueprint $table) {
+                $table->dropColumn(['name', 'notes']);
+            });
+
+            $this->assertTrue(Schema::hasColumn('foo_drop_cols', 'id'));
+            $this->assertFalse(Schema::hasColumn('foo_drop_cols', 'name'));
+            $this->assertFalse(Schema::hasColumn('foo_drop_cols', 'notes'));
+        } finally {
+            Schema::dropIfExists('foo_drop_cols');
+        }
+    }
+
+    #[Test]
+    public function it_can_rename_columns()
+    {
+        Schema::dropIfExists('foo_rename_col');
+
+        try {
+            Schema::create('foo_rename_col', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('old_name');
+            });
+
+            Schema::table('foo_rename_col', function (Blueprint $table) {
+                $table->renameColumn('old_name', 'new_name');
+            });
+
+            $this->assertFalse(Schema::hasColumn('foo_rename_col', 'old_name'));
+            $this->assertTrue(Schema::hasColumn('foo_rename_col', 'new_name'));
+
+            DB::table('foo_rename_col')->insert([
+                'id' => 1,
+                'new_name' => 'Renamed',
+            ]);
+
+            $this->assertDatabaseHas('foo_rename_col', [
+                'id' => 1,
+                'new_name' => 'Renamed',
+            ]);
+        } finally {
+            Schema::dropIfExists('foo_rename_col');
+        }
+    }
+
+    #[Test]
+    public function it_throws_an_exception_for_renaming_tables()
+    {
+        Schema::dropIfExists('foo_rename_table');
+
+        try {
+            Schema::create('foo_rename_table', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('name');
+            });
+
+            $this->expectException(\LogicException::class);
+            $this->expectExceptionMessage('This database driver does not support renaming tables.');
+
+            Schema::rename('foo_rename_table', 'foo_renamed_table');
+        } finally {
+            Schema::dropIfExists('foo_rename_table');
+        }
+    }
+
+    #[Test]
     public function it_can_create_indexes()
     {
         Schema::dropIfExists('foo_indexes');

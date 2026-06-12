@@ -100,11 +100,15 @@ trait MigrateDatabase
             'foo',
             'foo_add_cols',
             'foo_drop_idx',
+            'foo_drop_cols',
             'foo_enum',
             'foo_fk_child',
             'foo_fk_parent',
             'foo_indexes',
             'foo_pk',
+            'foo_renamed_table',
+            'foo_rename_col',
+            'foo_rename_table',
             'foo_unique',
         ];
 
