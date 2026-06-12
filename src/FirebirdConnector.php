@@ -1,9 +1,11 @@
 <?php
 
-namespace HarryGulliford\Firebird;
+namespace Benson\LaravelFirebird;
 
 use Illuminate\Database\Connectors\Connector;
 use Illuminate\Database\Connectors\ConnectorInterface;
+use InvalidArgumentException;
+use PDO;
 
 class FirebirdConnector extends Connector implements ConnectorInterface
 {
@@ -19,7 +21,11 @@ class FirebirdConnector extends Connector implements ConnectorInterface
 
         $options = $this->getOptions($config);
 
-        return $this->createConnection($dsn, $config, $options);
+        $connection = $this->createConnection($dsn, $config, $options);
+
+        $connection->setAttribute(PDO::ATTR_CASE, PDO::CASE_LOWER);
+
+        return $connection;
     }
 
     /**
@@ -30,22 +36,43 @@ class FirebirdConnector extends Connector implements ConnectorInterface
      */
     protected function getDsn(array $config)
     {
-        $dsn = "firebird:dbname={$config['host']}";
+        $database = (string) ($config['database'] ?? '');
 
-        if (isset($config['port'])) {
-            $dsn .= "/{$config['port']}";
+        if ($database === '') {
+            throw new InvalidArgumentException('Firebird connection requires a database path.');
         }
 
-        $dsn .= ":{$config['database']};";
+        $host = (string) ($config['host'] ?? '');
+        $port = (string) ($config['port'] ?? '');
+        $charset = (string) ($config['charset'] ?? 'UTF8');
+        $role = (string) ($config['role'] ?? '');
+        $dialect = (string) ($config['dialect'] ?? '');
 
-        if (isset($config['role'])) {
-            $dsn .= "role={$config['role']};";
+        $databaseName = $database;
+
+        if ($host !== '') {
+            $databaseName = $host;
+
+            if ($port !== '') {
+                $databaseName .= "/{$port}";
+            }
+
+            $databaseName .= ":{$database}";
         }
 
-        if (isset($config['charset'])) {
-            $dsn .= "charset={$config['charset']};";
+        $segments = [
+            "dbname={$databaseName}",
+            "charset={$charset}",
+        ];
+
+        if ($role !== '') {
+            $segments[] = "role={$role}";
         }
 
-        return $dsn;
+        if ($dialect !== '') {
+            $segments[] = "dialect={$dialect}";
+        }
+
+        return 'firebird:'.implode(';', $segments);
     }
 }

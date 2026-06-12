@@ -1,8 +1,8 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests\Support\Factories;
+namespace Benson\LaravelFirebird\Tests\Support\Factories;
 
-use HarryGulliford\Firebird\Tests\Support\Models\User;
+use Benson\LaravelFirebird\Tests\Support\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class UserFactory extends Factory

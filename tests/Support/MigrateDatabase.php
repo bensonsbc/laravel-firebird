@@ -1,6 +1,6 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests\Support;
+namespace Benson\LaravelFirebird\Tests\Support;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;

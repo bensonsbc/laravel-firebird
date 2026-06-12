@@ -1,6 +1,6 @@
 {
   "$schema": "https://getcomposer.org/schema.json",
-  "name": "harrygulliford/laravel-firebird",
+  "name": "benson/laravel-firebird",
   "description": "Firebird database driver for the Laravel Framework",
   "license": "MIT",
   "require": {
@@ -23,18 +23,18 @@
   },
   "autoload": {
     "psr-4": {
-      "HarryGulliford\\Firebird\\": "src/"
+      "Benson\\LaravelFirebird\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "HarryGulliford\\Firebird\\Tests\\": "tests/"
+      "Benson\\LaravelFirebird\\Tests\\": "tests/"
     }
   },
   "extra": {
     "laravel": {
       "providers": [
-        "HarryGulliford\\Firebird\\FirebirdServiceProvider"
+        "Benson\\LaravelFirebird\\FirebirdServiceProvider"
       ]
     }
   }

@@ -1,6 +1,6 @@
 <?php
 
-namespace HarryGulliford\Firebird\Schema;
+namespace Benson\LaravelFirebird\Schema;
 
 use Illuminate\Database\Schema\Builder as BaseBuilder;
 

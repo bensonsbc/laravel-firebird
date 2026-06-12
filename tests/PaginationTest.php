@@ -1,9 +1,9 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests;
+namespace Benson\LaravelFirebird\Tests;
 
-use HarryGulliford\Firebird\Tests\Support\MigrateDatabase;
-use HarryGulliford\Firebird\Tests\Support\Models\Order;
+use Benson\LaravelFirebird\Tests\Support\MigrateDatabase;
+use Benson\LaravelFirebird\Tests\Support\Models\Order;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 

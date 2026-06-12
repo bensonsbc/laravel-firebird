@@ -1,8 +1,8 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests;
+namespace Benson\LaravelFirebird\Tests;
 
-use HarryGulliford\Firebird\Tests\Support\MigrateDatabase;
+use Benson\LaravelFirebird\Tests\Support\MigrateDatabase;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

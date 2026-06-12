@@ -1,6 +1,6 @@
 <?php
 
-namespace HarryGulliford\Firebird;
+namespace Benson\LaravelFirebird;
 
 use Closure;
 use Illuminate\Database\Connection;

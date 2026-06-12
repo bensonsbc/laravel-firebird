@@ -1,8 +1,8 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests;
+namespace Benson\LaravelFirebird\Tests;
 
-use HarryGulliford\Firebird\FirebirdServiceProvider;
+use Benson\LaravelFirebird\FirebirdServiceProvider;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 
 class TestCase extends OrchestraTestCase
@@ -36,6 +36,7 @@ class TestCase extends OrchestraTestCase
             'username' => env('DB_USERNAME', 'sysdba'),
             'password' => env('DB_PASSWORD', 'masterkey'),
             'charset' => env('DB_CHARSET', 'UTF8'),
+            'dialect' => env('DB_DIALECT'),
         ]);
     }
 }

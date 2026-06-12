@@ -1,15 +1,17 @@
 <?php
 
-namespace HarryGulliford\Firebird;
+namespace Benson\LaravelFirebird;
 
-use HarryGulliford\Firebird\Query\Builder as FirebirdQueryBuilder;
-use HarryGulliford\Firebird\Query\Grammars\FirebirdGrammar as FirebirdQueryGrammar;
-use HarryGulliford\Firebird\Query\Processors\FirebirdProcessor as FirebirdQueryProcessor;
-use HarryGulliford\Firebird\Schema\Builder as FirebirdSchemaBuilder;
-use HarryGulliford\Firebird\Schema\Grammars\FirebirdGrammar as FirebirdSchemaGrammar;
+use Benson\LaravelFirebird\Query\Builder as FirebirdQueryBuilder;
+use Benson\LaravelFirebird\Query\Grammars\FirebirdGrammar as FirebirdQueryGrammar;
+use Benson\LaravelFirebird\Query\Processors\FirebirdProcessor as FirebirdQueryProcessor;
+use Benson\LaravelFirebird\Schema\Builder as FirebirdSchemaBuilder;
+use Benson\LaravelFirebird\Schema\Grammars\FirebirdGrammar as FirebirdSchemaGrammar;
+use Closure;
 use Illuminate\Database\Connection as DatabaseConnection;
 use Illuminate\Support\Str;
 use PDO;
+use Throwable;
 
 class FirebirdConnection extends DatabaseConnection
 {
@@ -75,6 +77,101 @@ class FirebirdConnection extends DatabaseConnection
     protected function getDefaultSchemaGrammar()
     {
         return new FirebirdSchemaGrammar($this);
+    }
+
+    /**
+     * Execute the statement to start a transaction.
+     *
+     * Firebird may open implicit transactions for reads or DDL. Close that
+     * implicit transaction before Laravel starts an explicit transaction.
+     *
+     * @return void
+     */
+    protected function executeBeginTransactionStatement()
+    {
+        $pdo = $this->getPdo();
+
+        if ($pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+
+        $pdo->setAttribute(PDO::ATTR_AUTOCOMMIT, false);
+
+        parent::executeBeginTransactionStatement();
+    }
+
+    /**
+     * Commit the active database transaction.
+     *
+     * @return void
+     */
+    public function commit()
+    {
+        $isOuterTransaction = $this->transactionLevel() === 1;
+
+        try {
+            parent::commit();
+        } finally {
+            if ($isOuterTransaction) {
+                $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
+            }
+        }
+    }
+
+    /**
+     * Perform a rollback within the database.
+     *
+     * @param  int  $toLevel
+     * @return void
+     */
+    protected function performRollBack($toLevel)
+    {
+        try {
+            parent::performRollBack($toLevel);
+        } finally {
+            if ($toLevel === 0) {
+                $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
+                $this->transactions = 0;
+            }
+        }
+    }
+
+    /**
+     * Handle an exception from a rollback.
+     *
+     * @param  \Throwable  $e
+     * @return void
+     *
+     * @throws \Throwable
+     */
+    protected function handleRollBackException(Throwable $e)
+    {
+        if ($this->transactionLevel() > 0) {
+            $this->transactions = 0;
+            $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
+        }
+
+        throw $e;
+    }
+
+    /**
+     * Execute a Closure within a transaction.
+     *
+     * @param  \Closure  $callback
+     * @param  int  $attempts
+     * @return mixed
+     *
+     * @throws \Throwable
+     */
+    public function transaction(Closure $callback, $attempts = 1)
+    {
+        try {
+            return parent::transaction($callback, $attempts);
+        } finally {
+            if ($this->transactionLevel() === 0) {
+                $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
+            }
+        }
     }
 
     /**

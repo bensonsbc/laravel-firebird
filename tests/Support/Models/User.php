@@ -1,8 +1,8 @@
 <?php
 
-namespace HarryGulliford\Firebird\Tests\Support\Models;
+namespace Benson\LaravelFirebird\Tests\Support\Models;
 
-use HarryGulliford\Firebird\Tests\Support\Factories\UserFactory;
+use Benson\LaravelFirebird\Tests\Support\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;

@@ -1,6 +1,6 @@
 <?php
 
-namespace HarryGulliford\Firebird\Schema\Grammars;
+namespace Benson\LaravelFirebird\Schema\Grammars;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Grammars\Grammar;
