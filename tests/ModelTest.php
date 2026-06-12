@@ -64,4 +64,23 @@ class ModelTest extends TestCase
 
         $this->assertTrue($user->is($order->user));
     }
+
+    #[Test]
+    public function it_can_soft_delete_models()
+    {
+        $user = User::factory()->create([
+            'email' => 'soft-delete@example.com',
+        ]);
+
+        $user->delete();
+
+        $this->assertNull(User::find($user->id));
+        $this->assertNotNull(User::withTrashed()->find($user->id));
+        $this->assertSame($user->id, User::onlyTrashed()->where('email', 'soft-delete@example.com')->first()->id);
+
+        $user->restore();
+
+        $this->assertNotNull(User::find($user->id));
+        $this->assertNull(User::onlyTrashed()->where('email', 'soft-delete@example.com')->first());
+    }
 }
