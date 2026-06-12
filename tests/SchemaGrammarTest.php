@@ -130,6 +130,33 @@ class SchemaGrammarTest extends TestCase
         $this->assertStringNotContainsString('WITH TIME ZONE', $statements[0]);
     }
 
+    #[Test]
+    public function it_changes_nullability_through_alter_column_on_firebird_three_and_newer()
+    {
+        $connection = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $blueprint = new Blueprint($connection, 'foo_users', function (Blueprint $table) {
+            $table->string('name', 50)->nullable()->change();
+        });
+
+        $this->assertContains('ALTER TABLE "foo_users" ALTER "name" DROP NOT NULL', $blueprint->toSql());
+    }
+
+    #[Test]
+    public function it_changes_nullability_through_the_system_table_on_legacy_servers()
+    {
+        $connection = $this->makeConnection(['server_version' => '2.5.9']);
+
+        $blueprint = new Blueprint($connection, 'foo_users', function (Blueprint $table) {
+            $table->string('name', 50)->change();
+        });
+
+        $this->assertContains(
+            "update rdb\$relation_fields set rdb\$null_flag = 1 where rdb\$relation_name = 'foo_users' and rdb\$field_name = 'name'",
+            $blueprint->toSql()
+        );
+    }
+
     protected function createTableSql(FirebirdConnection $connection, string $table, callable $callback): array
     {
         $blueprint = new Blueprint($connection, $table, function (Blueprint $table) use ($callback) {

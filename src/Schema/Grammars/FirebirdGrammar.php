@@ -432,14 +432,38 @@ class FirebirdGrammar extends Grammar
             );
         }
 
-        $statements[] = sprintf(
-            'ALTER TABLE %s ALTER %s %s NOT NULL',
-            $table,
-            $name,
-            $column->nullable ? 'DROP' : 'SET',
-        );
+        $statements[] = $this->compileChangeNullability($blueprint, $column);
 
         return $statements;
+    }
+
+    /**
+     * Compile the nullability change for a column.
+     *
+     * Servers older than Firebird 3 have no ALTER COLUMN SET/DROP NOT NULL,
+     * so the null flag is toggled directly on the system table there.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function compileChangeNullability(Blueprint $blueprint, Fluent $column)
+    {
+        if ($this->connection->supportsAlterColumnNullability()) {
+            return sprintf(
+                'ALTER TABLE %s ALTER %s %s NOT NULL',
+                $this->wrapTable($blueprint),
+                $this->wrap($column->name),
+                $column->nullable ? 'DROP' : 'SET',
+            );
+        }
+
+        return sprintf(
+            'update rdb$relation_fields set rdb$null_flag = %s where rdb$relation_name = %s and rdb$field_name = %s',
+            $column->nullable ? 'null' : '1',
+            $this->quoteString($this->normalizeObjectName($blueprint->getTable())),
+            $this->quoteString($this->normalizeObjectName($column->name)),
+        );
     }
 
     /**
