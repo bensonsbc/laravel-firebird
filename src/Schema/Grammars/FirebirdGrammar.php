@@ -327,7 +327,7 @@ class FirebirdGrammar extends Grammar
      */
     protected function autoIncrementGeneratorName(Blueprint $blueprint, Fluent $column)
     {
-        return $this->autoIncrementObjectName($blueprint->getTable().'_'.$column->name.'_gen');
+        return $this->constrainIdentifier($blueprint->getTable().'_'.$column->name.'_gen');
     }
 
     /**
@@ -339,25 +339,27 @@ class FirebirdGrammar extends Grammar
      */
     protected function autoIncrementTriggerName(Blueprint $blueprint, Fluent $column)
     {
-        return $this->autoIncrementObjectName($blueprint->getTable().'_'.$column->name.'_bi');
+        return $this->constrainIdentifier($blueprint->getTable().'_'.$column->name.'_bi');
     }
 
     /**
-     * Constrain an auto-increment object name to Firebird's 31 character limit.
+     * Constrain an object name to the server's identifier length limit.
      *
-     * Long names keep a hash suffix so two truncated names cannot collide and
-     * silently share a generator or trigger.
+     * Long names keep a hash suffix so two truncated names cannot collide
+     * and silently reference the same database object.
      *
      * @param  string  $name
      * @return string
      */
-    protected function autoIncrementObjectName($name)
+    protected function constrainIdentifier($name)
     {
-        if (strlen($name) <= 31) {
+        $limit = $this->connection->getMaxIdentifierLength();
+
+        if (strlen($name) <= $limit) {
             return $name;
         }
 
-        return substr($name, 0, 22).'_'.substr(md5($name), 0, 8);
+        return substr($name, 0, $limit - 9).'_'.substr(md5($name), 0, 8);
     }
 
     /**
@@ -463,7 +465,7 @@ class FirebirdGrammar extends Grammar
     {
         $columns = $this->columnize($command->columns);
 
-        $constraint = $command->index ? 'CONSTRAINT '.$this->wrap(substr($command->index, 0, 31)).' ' : '';
+        $constraint = $command->index ? 'CONSTRAINT '.$this->wrap($this->constrainIdentifier($command->index)).' ' : '';
 
         return 'ALTER TABLE '.$this->wrapTable($blueprint)." ADD {$constraint}PRIMARY KEY ({$columns})";
     }
@@ -479,7 +481,7 @@ class FirebirdGrammar extends Grammar
     {
         $table = $this->wrapTable($blueprint);
 
-        $index = $this->wrap(substr($command->index, 0, 31));
+        $index = $this->wrap($this->constrainIdentifier($command->index));
 
         $columns = $this->columnize($command->columns);
 
@@ -497,7 +499,7 @@ class FirebirdGrammar extends Grammar
     {
         $columns = $this->columnize($command->columns);
 
-        $index = $this->wrap(substr($command->index, 0, 31));
+        $index = $this->wrap($this->constrainIdentifier($command->index));
 
         $table = $this->wrapTable($blueprint);
 
@@ -524,7 +526,7 @@ class FirebirdGrammar extends Grammar
 
         $onColumns = $this->columnize((array) $command->references);
 
-        $fkName = $this->wrap(substr($command->index, 0, 31));
+        $fkName = $this->wrap($this->constrainIdentifier($command->index));
 
         $sql = "ALTER TABLE {$table} ADD CONSTRAINT {$fkName} ";
 
@@ -555,7 +557,7 @@ class FirebirdGrammar extends Grammar
     {
         $table = $this->wrapTable($blueprint);
 
-        return "ALTER TABLE {$table} DROP CONSTRAINT {$this->wrap($command->index)}";
+        return "ALTER TABLE {$table} DROP CONSTRAINT {$this->wrap($this->constrainIdentifier($command->index))}";
     }
 
     /**
@@ -567,7 +569,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileDropPrimary(Blueprint $blueprint, Fluent $command)
     {
-        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($command->index);
+        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($this->constrainIdentifier($command->index));
     }
 
     /**
@@ -579,7 +581,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileDropUnique(Blueprint $blueprint, Fluent $command)
     {
-        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($command->index);
+        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($this->constrainIdentifier($command->index));
     }
 
     /**
@@ -591,7 +593,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileDropIndex(Blueprint $blueprint, Fluent $command)
     {
-        return 'DROP INDEX '.$this->wrap($command->index);
+        return 'DROP INDEX '.$this->wrap($this->constrainIdentifier($command->index));
     }
 
     /**

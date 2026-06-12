@@ -64,6 +64,46 @@ class SchemaGrammarTest extends TestCase
         $this->assertStringNotContainsString('IDENTITY', $statements[0]);
     }
 
+    #[Test]
+    public function it_hashes_index_names_beyond_the_identifier_limit()
+    {
+        $connection = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $longIndex = 'foo_users_with_a_very_long_table_name_email_unique';
+
+        $statements = $this->createTableSql($connection, 'foo_users', function (Blueprint $table) use ($longIndex) {
+            $table->string('email');
+            $table->unique('email', $longIndex);
+        });
+
+        preg_match('/ADD CONSTRAINT "([^"]+)"/', $statements[1], $matches);
+
+        $this->assertSame(31, strlen($matches[1]));
+        $this->assertStringStartsWith('foo_users_with_a_very_', $matches[1]);
+
+        // The drop side must resolve to the same constrained name.
+        $blueprint = new Blueprint($connection, 'foo_users', function (Blueprint $table) use ($longIndex) {
+            $table->dropUnique($longIndex);
+        });
+
+        $this->assertStringContainsString('DROP CONSTRAINT "'.$matches[1].'"', $blueprint->toSql()[0]);
+    }
+
+    #[Test]
+    public function it_allows_longer_identifiers_on_firebird_four_and_newer()
+    {
+        $connection = $this->makeConnection(['server_version' => '4.0.4']);
+
+        $longIndex = 'foo_users_with_a_very_long_table_name_email_unique';
+
+        $statements = $this->createTableSql($connection, 'foo_users', function (Blueprint $table) use ($longIndex) {
+            $table->string('email');
+            $table->unique('email', $longIndex);
+        });
+
+        $this->assertStringContainsString('ADD CONSTRAINT "'.$longIndex.'"', $statements[1]);
+    }
+
     protected function createTableSql(FirebirdConnection $connection, string $table, callable $callback): array
     {
         $blueprint = new Blueprint($connection, $table, function (Blueprint $table) use ($callback) {
