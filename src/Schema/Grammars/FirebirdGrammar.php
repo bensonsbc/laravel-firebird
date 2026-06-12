@@ -19,6 +19,13 @@ class FirebirdGrammar extends Grammar
     protected $modifiers = ['Charset', 'Collate', 'Increment', 'Default', 'Nullable'];
 
     /**
+     * The commands to be executed outside of create or alter command.
+     *
+     * @var array
+     */
+    protected $fluentCommands = ['Comment'];
+
+    /**
      * The columns available as serials.
      *
      * @var array
@@ -618,6 +625,52 @@ class FirebirdGrammar extends Grammar
     public function compileDropIndex(Blueprint $blueprint, Fluent $command)
     {
         return 'DROP INDEX '.$this->wrap($this->constrainIdentifier($command->index));
+    }
+
+    /**
+     * Compile a column comment command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string|null
+     */
+    public function compileComment(Blueprint $blueprint, Fluent $command)
+    {
+        if (! is_null($comment = $command->column->comment) || $command->column->change) {
+            return sprintf(
+                'comment on column %s.%s is %s',
+                $this->wrapTable($blueprint),
+                $this->wrap($command->column->name),
+                is_null($comment) ? 'NULL' : $this->quoteCommentString($comment)
+            );
+        }
+    }
+
+    /**
+     * Compile a table comment command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileTableComment(Blueprint $blueprint, Fluent $command)
+    {
+        return sprintf(
+            'comment on table %s is %s',
+            $this->wrapTable($blueprint),
+            $this->quoteCommentString($command->comment)
+        );
+    }
+
+    /**
+     * Quote a comment string, escaping embedded quotes.
+     *
+     * @param  string  $value
+     * @return string
+     */
+    protected function quoteCommentString($value)
+    {
+        return "'".str_replace("'", "''", $value)."'";
     }
 
     /**

@@ -157,6 +157,20 @@ class SchemaGrammarTest extends TestCase
         );
     }
 
+    #[Test]
+    public function it_compiles_table_and_column_comments()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $statements = $this->createTableSql($connection, 'foo_users', function (Blueprint $table) {
+            $table->comment("User's table");
+            $table->string('name')->comment('Full name');
+        });
+
+        $this->assertContains('comment on column "foo_users"."name" is \'Full name\'', $statements);
+        $this->assertContains('comment on table "foo_users" is \'User\'\'s table\'', $statements);
+    }
+
     protected function createTableSql(FirebirdConnection $connection, string $table, callable $callback): array
     {
         $blueprint = new Blueprint($connection, $table, function (Blueprint $table) use ($callback) {
