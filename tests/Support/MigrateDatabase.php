@@ -100,6 +100,7 @@ trait MigrateDatabase
             'foo',
             'foo_add_cols',
             'foo_drop_idx',
+            'foo_enum',
             'foo_fk_child',
             'foo_fk_parent',
             'foo_indexes',

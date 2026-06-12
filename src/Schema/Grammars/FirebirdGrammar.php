@@ -614,11 +614,9 @@ class FirebirdGrammar extends Grammar
      */
     protected function typeEnum(Fluent $column)
     {
-        $allowed = array_map(function ($a) {
-            return "'".$a."'";
-        }, $column->allowed);
+        $allowed = array_map(fn ($value) => $this->quoteString($value), $column->allowed);
 
-        return "VARCHAR(255) CHECK (\"{$column->name}\" IN (".implode(', ', $allowed).'))';
+        return 'VARCHAR(255) CHECK ('.$this->wrap($column->name).' IN ('.implode(', ', $allowed).'))';
     }
 
     /**

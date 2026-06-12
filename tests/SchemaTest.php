@@ -3,6 +3,7 @@
 namespace Benson\LaravelFirebird\Tests;
 
 use Benson\LaravelFirebird\Tests\Support\MigrateDatabase;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -244,6 +245,42 @@ class SchemaTest extends TestCase
 
         Schema::drop('foo_fk_child');
         Schema::drop('foo_fk_parent');
+    }
+
+    #[Test]
+    public function it_can_create_enum_columns_with_check_constraints()
+    {
+        Schema::dropIfExists('foo_enum');
+
+        try {
+            Schema::create('foo_enum', function (Blueprint $table) {
+                $table->integer('id');
+                $table->enum('status', ['new', 'done']);
+            });
+
+            DB::table('foo_enum')->insert([
+                'id' => 1,
+                'status' => 'new',
+            ]);
+
+            $this->assertDatabaseHas('foo_enum', [
+                'id' => 1,
+                'status' => 'new',
+            ]);
+
+            try {
+                DB::table('foo_enum')->insert([
+                    'id' => 2,
+                    'status' => 'invalid',
+                ]);
+
+                $this->fail('The enum check constraint should reject invalid values.');
+            } catch (QueryException $exception) {
+                $this->assertStringContainsString('check', strtolower($exception->getMessage()));
+            }
+        } finally {
+            Schema::dropIfExists('foo_enum');
+        }
     }
 
     #[Test]
