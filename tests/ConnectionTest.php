@@ -20,7 +20,7 @@ class ConnectionTest extends TestCase
     {
         $connection = DB::connection();
 
-        $expectedVersion = $connection->selectOne('select rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as "version" from rdb$database');
+        $expectedVersion = $connection->selectOne('select rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as version from rdb$database');
         $expectedVersion = $expectedVersion->version;
 
         $version = $connection->getServerVersion();

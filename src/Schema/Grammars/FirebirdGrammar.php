@@ -23,6 +23,29 @@ class FirebirdGrammar extends Grammar
     protected $serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger'];
 
     /**
+     * Wrap a single string in keyword identifiers.
+     *
+     * @param  string  $value
+     * @return string
+     */
+    protected function wrapValue($value)
+    {
+        if ($value === '*') {
+            return $value;
+        }
+
+        if ($this->connection->getConfig('uppercase_identifiers', false) === true) {
+            $value = strtoupper($value);
+        }
+
+        if ($this->connection->getConfig('quote_identifiers', true) === false) {
+            return $value;
+        }
+
+        return '"'.str_replace('"', '""', $value).'"';
+    }
+
+    /**
      * Compile the query to determine if the given table exists.
      *
      * @param  string|null  $schema
@@ -33,8 +56,8 @@ class FirebirdGrammar extends Grammar
     {
         return sprintf(
             'select exists (select 1 from rdb$relations where rdb$relation_name = %s and rdb$relation_type = 0 and '
-            .'(rdb$system_flag is null or rdb$system_flag = 0)) as "exists" from rdb$database',
-            $this->quoteString($table),
+            .'(rdb$system_flag is null or rdb$system_flag = 0)) from rdb$database',
+            $this->quoteString($this->normalizeObjectName($table)),
         );
     }
 
@@ -46,7 +69,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileTables($schema)
     {
-        return 'select trim(trailing from rdb$relation_name) as "name" '
+        return 'select trim(trailing from rdb$relation_name) as '.$this->wrapMetadataAlias('name').' '
             .'from rdb$relations '
             .'where rdb$relation_type = 0 '
             .'and (rdb$system_flag is null or rdb$system_flag = 0) '
@@ -63,10 +86,11 @@ class FirebirdGrammar extends Grammar
     public function compileColumns($schema, $table)
     {
         return sprintf(
-            'select trim(trailing from rdb$field_name) as "name" '
+            'select trim(trailing from rdb$field_name) as %s '
             .'from rdb$relation_fields where rdb$relation_name = %s '
             .'order by rdb$field_position',
-            $this->quoteString($table),
+            $this->wrapMetadataAlias('name'),
+            $this->quoteString($this->normalizeObjectName($table)),
         );
     }
 
@@ -78,7 +102,11 @@ class FirebirdGrammar extends Grammar
      */
     public function compileColumnListing($table)
     {
-        return "select trim(rdb\$field_name) as \"column_name\" from rdb\$relation_fields where rdb\$relation_name = '$table'";
+        return sprintf(
+            'select trim(rdb$field_name) as %s from rdb$relation_fields where rdb$relation_name = %s',
+            $this->wrapMetadataAlias('column_name'),
+            $this->quoteString($this->normalizeObjectName($table)),
+        );
     }
 
     /**
@@ -125,9 +153,35 @@ class FirebirdGrammar extends Grammar
         return sprintf(
             'execute block as begin if (exists(select 1 from rdb$relations where rdb$relation_name = %s and rdb$relation_type = 0 and '
             .'(rdb$system_flag is null or rdb$system_flag = 0))) then execute statement \'drop table %s\'; end',
-            $this->quoteString($blueprint->getTable()),
+            $this->quoteString($this->normalizeObjectName($blueprint->getTable())),
             $this->wrapTable($blueprint)
         );
+    }
+
+    /**
+     * Normalize a metadata object lookup for legacy uppercase schemas.
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function normalizeObjectName($name)
+    {
+        return $this->connection->getConfig('uppercase_identifiers', false) === true
+            ? strtoupper($name)
+            : $name;
+    }
+
+    /**
+     * Wrap a metadata alias when the configured dialect supports it.
+     *
+     * @param  string  $alias
+     * @return string
+     */
+    protected function wrapMetadataAlias($alias)
+    {
+        return (string) $this->connection->getConfig('dialect') === '1'
+            ? $alias
+            : '"'.$alias.'"';
     }
 
     /**

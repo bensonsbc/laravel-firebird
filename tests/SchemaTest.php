@@ -122,7 +122,11 @@ class SchemaTest extends TestCase
     #[Test]
     public function it_can_drop_table()
     {
-        DB::select('RECREATE TABLE "foo" ("id" INTEGER NOT NULL)');
+        DB::select(sprintf(
+            'RECREATE TABLE %s (%s INTEGER NOT NULL)',
+            DB::getQueryGrammar()->wrapTable('foo'),
+            DB::getQueryGrammar()->wrap('id'),
+        ));
 
         $this->assertTrue(Schema::hasTable('foo'));
 
@@ -134,7 +138,11 @@ class SchemaTest extends TestCase
     #[Test]
     public function it_can_drop_table_if_exists()
     {
-        DB::select('RECREATE TABLE "foo" ("id" INTEGER NOT NULL)');
+        DB::select(sprintf(
+            'RECREATE TABLE %s (%s INTEGER NOT NULL)',
+            DB::getQueryGrammar()->wrapTable('foo'),
+            DB::getQueryGrammar()->wrap('id'),
+        ));
 
         $this->assertTrue(Schema::hasTable('foo'));
 

@@ -35,14 +35,59 @@ trait MigrateDatabase
 
     public function createTables(): void
     {
-        DB::select('CREATE TABLE "users" ("id" INTEGER NOT NULL PRIMARY KEY, "name" VARCHAR(255) NOT NULL, "email" VARCHAR(255) NOT NULL, "city" VARCHAR(255), "state" VARCHAR(255), "post_code" VARCHAR(255), "country" VARCHAR(255), "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
-        DB::select('CREATE GENERATOR "users_id_gen"');
-        DB::select('CREATE TRIGGER "users_bi" FOR "users" ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (NEW."id" IS NULL) THEN NEW."id" = GEN_ID("users_id_gen", 1); END');
+        DB::select(sprintf(
+            'CREATE TABLE %s (%s INTEGER NOT NULL PRIMARY KEY, %s VARCHAR(255) NOT NULL, %s VARCHAR(255) NOT NULL, %s VARCHAR(255), %s VARCHAR(255), %s VARCHAR(255), %s VARCHAR(255), %s TIMESTAMP, %s TIMESTAMP, %s TIMESTAMP)',
+            $this->wrapTable('users'),
+            $this->wrapColumn('id'),
+            $this->wrapColumn('name'),
+            $this->wrapColumn('email'),
+            $this->wrapColumn('city'),
+            $this->wrapColumn('state'),
+            $this->wrapColumn('post_code'),
+            $this->wrapColumn('country'),
+            $this->wrapColumn('created_at'),
+            $this->wrapColumn('updated_at'),
+            $this->wrapColumn('deleted_at'),
+        ));
+        DB::select('CREATE GENERATOR '.$this->wrapObject('users_id_gen'));
+        DB::select(sprintf(
+            'CREATE TRIGGER %s FOR %s ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (%s IS NULL) THEN %s = GEN_ID(%s, 1); END',
+            $this->wrapObject('users_bi'),
+            $this->wrapTable('users'),
+            $this->newColumn('id'),
+            $this->newColumn('id'),
+            $this->wrapObject('users_id_gen'),
+        ));
 
-        DB::select('CREATE TABLE "orders" ("id" INTEGER NOT NULL PRIMARY KEY, "user_id" INTEGER NOT NULL, "name" VARCHAR(255) NOT NULL, "price" INTEGER NOT NULL, "quantity" INTEGER NOT NULL, "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
-        DB::select('CREATE GENERATOR "orders_id_gen"');
-        DB::select('CREATE TRIGGER "orders_bi" FOR "orders" ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (NEW."id" IS NULL) THEN NEW."id" = GEN_ID("orders_id_gen", 1); END');
-        DB::select('ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_foreign" FOREIGN KEY ("user_id") REFERENCES "users" ("id")');
+        DB::select(sprintf(
+            'CREATE TABLE %s (%s INTEGER NOT NULL PRIMARY KEY, %s INTEGER NOT NULL, %s VARCHAR(255) NOT NULL, %s INTEGER NOT NULL, %s INTEGER NOT NULL, %s TIMESTAMP, %s TIMESTAMP, %s TIMESTAMP)',
+            $this->wrapTable('orders'),
+            $this->wrapColumn('id'),
+            $this->wrapColumn('user_id'),
+            $this->wrapColumn('name'),
+            $this->wrapColumn('price'),
+            $this->wrapColumn('quantity'),
+            $this->wrapColumn('created_at'),
+            $this->wrapColumn('updated_at'),
+            $this->wrapColumn('deleted_at'),
+        ));
+        DB::select('CREATE GENERATOR '.$this->wrapObject('orders_id_gen'));
+        DB::select(sprintf(
+            'CREATE TRIGGER %s FOR %s ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (%s IS NULL) THEN %s = GEN_ID(%s, 1); END',
+            $this->wrapObject('orders_bi'),
+            $this->wrapTable('orders'),
+            $this->newColumn('id'),
+            $this->newColumn('id'),
+            $this->wrapObject('orders_id_gen'),
+        ));
+        DB::select(sprintf(
+            'ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)',
+            $this->wrapTable('orders'),
+            $this->wrapObject('orders_user_id_foreign'),
+            $this->wrapColumn('user_id'),
+            $this->wrapTable('users'),
+            $this->wrapColumn('id'),
+        ));
     }
 
     public function dropTables(): void
@@ -77,6 +122,26 @@ trait MigrateDatabase
                 }
             }
         }
+    }
+
+    protected function wrapTable(string $table): string
+    {
+        return DB::getQueryGrammar()->wrapTable($table);
+    }
+
+    protected function wrapColumn(string $column): string
+    {
+        return DB::getQueryGrammar()->wrap($column);
+    }
+
+    protected function wrapObject(string $object): string
+    {
+        return DB::getQueryGrammar()->wrap($object);
+    }
+
+    protected function newColumn(string $column): string
+    {
+        return 'NEW.'.$this->wrapColumn($column);
     }
 
     public function createProcedures()

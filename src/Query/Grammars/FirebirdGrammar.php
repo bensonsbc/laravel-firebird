@@ -123,6 +123,10 @@ class FirebirdGrammar extends Grammar
      */
     protected function wrapAlias($value)
     {
+        if ((string) $this->connection->getConfig('dialect') === '1') {
+            return $this->normalizeIdentifier($value);
+        }
+
         return '"'.str_replace('"', '""', $value).'"';
     }
 

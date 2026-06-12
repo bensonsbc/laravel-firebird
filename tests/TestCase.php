@@ -37,6 +37,8 @@ class TestCase extends OrchestraTestCase
             'password' => env('DB_PASSWORD', 'masterkey'),
             'charset' => env('DB_CHARSET', 'UTF8'),
             'dialect' => env('DB_DIALECT'),
+            'quote_identifiers' => env('DB_DIALECT') !== '1',
+            'uppercase_identifiers' => env('DB_DIALECT') === '1',
         ]);
     }
 }

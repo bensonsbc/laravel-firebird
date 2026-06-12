@@ -8,6 +8,42 @@ use Illuminate\Database\Query\Processors\Processor;
 class FirebirdProcessor extends Processor
 {
     /**
+     * Process the results of a tables query.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array{name: string, schema: string|null, schema_qualified_name: string, size: int|null, comment: string|null, collation: string|null, engine: string|null}>
+     */
+    public function processTables($results)
+    {
+        return array_map(function ($table) {
+            $table = parent::processTables([$table])[0];
+            $table['name'] = strtolower($table['name']);
+            $table['schema_qualified_name'] = strtolower($table['schema_qualified_name']);
+
+            return $table;
+        }, $results);
+    }
+
+    /**
+     * Process the results of a columns query.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array{name: string, type: string, type_name: string, collation: string|null, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string|null, expression: string|null}|null}>
+     */
+    public function processColumns($results)
+    {
+        return array_map(function ($column) {
+            $column = (array) $column;
+
+            if (isset($column['name'])) {
+                $column['name'] = strtolower($column['name']);
+            }
+
+            return $column;
+        }, $results);
+    }
+
+    /**
      * Process an "insert get ID" query.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
