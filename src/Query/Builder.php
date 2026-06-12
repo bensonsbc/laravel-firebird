@@ -3,9 +3,47 @@
 namespace Benson\LaravelFirebird\Query;
 
 use Illuminate\Database\Query\Builder as BaseBuilder;
+use Illuminate\Support\Arr;
 
 class Builder extends BaseBuilder
 {
+    /**
+     * Insert new records into the database.
+     *
+     * Firebird does not accept Laravel's default multi-row VALUES syntax. Run
+     * batch inserts as single-row statements inside one transaction instead.
+     *
+     * @return bool
+     */
+    public function insert(array $values)
+    {
+        if (empty($values)) {
+            return true;
+        }
+
+        if (! is_array(Arr::first($values))) {
+            return parent::insert($values);
+        }
+
+        foreach ($values as $key => $value) {
+            ksort($value);
+
+            $values[$key] = $value;
+        }
+
+        $this->applyBeforeQueryCallbacks();
+
+        return $this->connection->transaction(function () use ($values) {
+            foreach ($values as $record) {
+                $sql = $this->grammar->compileInsert($this, $record);
+
+                $this->connection->insert($sql, $this->cleanBindings(array_values($record)));
+            }
+
+            return true;
+        });
+    }
+
     /**
      * Determine if any rows exist for the current query.
      *
