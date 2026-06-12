@@ -135,6 +135,22 @@ class GrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_compiles_lock_for_update()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $sql = $connection->table('cliente')
+            ->where('clienteid', 1)
+            ->lockForUpdate()
+            ->toSql();
+
+        $this->assertSame('select * from CLIENTE where CLIENTEID = ? for update with lock', $sql);
+    }
+
+    #[Test]
     public function it_quotes_reserved_identifiers_even_when_identifier_quoting_is_disabled()
     {
         $connection = $this->makeConnection([

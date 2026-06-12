@@ -320,6 +320,22 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile the lock into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  bool|string  $value
+     * @return string
+     */
+    protected function compileLock(Builder $query, $value)
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        return $value === true ? 'for update with lock' : '';
+    }
+
+    /**
      * Wrap a union subquery in parentheses.
      *
      * @param  string  $sql

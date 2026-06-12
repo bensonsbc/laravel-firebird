@@ -1551,6 +1551,21 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_lock_rows_for_update()
+    {
+        $user = User::factory()->create();
+
+        $locked = DB::transaction(function () use ($user) {
+            return DB::table('users')
+                ->where('id', $user->id)
+                ->lockForUpdate()
+                ->first();
+        });
+
+        $this->assertSame($user->id, $locked->id);
+    }
+
+    #[Test]
     public function it_can_insert_returning_id()
     {
         $id = DB::table('users')
