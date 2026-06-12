@@ -45,6 +45,45 @@ class Builder extends BaseBuilder
     }
 
     /**
+     * Insert new records into the database while ignoring duplicates.
+     *
+     * @return int<0, max>
+     */
+    public function insertOrIgnore(array $values)
+    {
+        if (empty($values)) {
+            return 0;
+        }
+
+        if (! is_array(Arr::first($values))) {
+            return parent::insertOrIgnore($values);
+        }
+
+        foreach ($values as $key => $value) {
+            ksort($value);
+
+            $values[$key] = $value;
+        }
+
+        $this->applyBeforeQueryCallbacks();
+
+        return $this->connection->transaction(function () use ($values) {
+            $affected = 0;
+
+            foreach ($values as $record) {
+                $sql = $this->grammar->compileInsertOrIgnore($this, $record);
+
+                $affected += $this->connection->affectingStatement(
+                    $sql,
+                    $this->cleanBindings(array_values($record))
+                );
+            }
+
+            return $affected;
+        });
+    }
+
+    /**
      * Determine if any rows exist for the current query.
      *
      * @return bool

@@ -89,6 +89,40 @@ class InsertTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function it_ignores_duplicates_in_multi_row_insert_or_ignore()
+    {
+        DB::table('MR_USERS')->insert($this->userAttributes([
+            'ID' => 20,
+            'EMAIL' => 'existing@example.com',
+        ]));
+
+        $affected = DB::table('MR_USERS')->insertOrIgnore([
+            $this->userAttributes([
+                'ID' => 20,
+                'EMAIL' => 'duplicate@example.com',
+            ]),
+            $this->userAttributes([
+                'ID' => 21,
+                'EMAIL' => 'new@example.com',
+            ]),
+        ]);
+
+        $this->assertSame(1, $affected);
+        $this->assertDatabaseHas('MR_USERS', [
+            'ID' => 20,
+            'EMAIL' => 'existing@example.com',
+        ]);
+        $this->assertDatabaseHas('MR_USERS', [
+            'ID' => 21,
+            'EMAIL' => 'new@example.com',
+        ]);
+        $this->assertDatabaseMissing('MR_USERS', [
+            'ID' => 20,
+            'EMAIL' => 'duplicate@example.com',
+        ]);
+    }
+
     protected function recreateTable()
     {
         DB::select('recreate table MR_USERS (ID integer not null primary key, NAME varchar(255) not null, EMAIL varchar(255) not null, CREATED_AT timestamp, UPDATED_AT timestamp)');
