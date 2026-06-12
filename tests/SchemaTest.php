@@ -140,6 +140,113 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_drop_indexes()
+    {
+        Schema::dropIfExists('foo_drop_idx');
+
+        Schema::create('foo_drop_idx', function (Blueprint $table) {
+            $table->integer('id');
+            $table->string('email');
+            $table->index('email', 'foo_drop_idx_email');
+        });
+
+        $this->assertTrue($this->hasIndex('foo_drop_idx', 'foo_drop_idx_email'));
+
+        Schema::table('foo_drop_idx', function (Blueprint $table) {
+            $table->dropIndex('foo_drop_idx_email');
+        });
+
+        $this->assertFalse($this->hasIndex('foo_drop_idx', 'foo_drop_idx_email'));
+
+        Schema::drop('foo_drop_idx');
+    }
+
+    #[Test]
+    public function it_can_create_and_drop_unique_constraints()
+    {
+        Schema::dropIfExists('foo_unique');
+
+        Schema::create('foo_unique', function (Blueprint $table) {
+            $table->integer('id');
+            $table->string('email');
+            $table->unique('email', 'foo_unique_email');
+        });
+
+        $this->assertTrue($this->hasIndex('foo_unique', 'foo_unique_email', unique: true));
+
+        Schema::table('foo_unique', function (Blueprint $table) {
+            $table->dropUnique('foo_unique_email');
+        });
+
+        $this->assertFalse($this->hasIndex('foo_unique', 'foo_unique_email'));
+
+        Schema::drop('foo_unique');
+    }
+
+    #[Test]
+    public function it_can_create_and_drop_named_primary_keys()
+    {
+        Schema::dropIfExists('foo_pk');
+
+        Schema::create('foo_pk', function (Blueprint $table) {
+            $table->integer('id');
+            $table->primary('id', 'foo_pk_id');
+        });
+
+        $this->assertTrue($this->hasIndex('foo_pk', 'foo_pk_id', primary: true));
+
+        Schema::table('foo_pk', function (Blueprint $table) {
+            $table->dropPrimary('foo_pk_id');
+        });
+
+        $this->assertFalse($this->hasIndex('foo_pk', 'foo_pk_id'));
+
+        Schema::drop('foo_pk');
+    }
+
+    #[Test]
+    public function it_can_create_list_and_drop_foreign_keys()
+    {
+        Schema::dropIfExists('foo_fk_child');
+        Schema::dropIfExists('foo_fk_parent');
+
+        Schema::create('foo_fk_parent', function (Blueprint $table) {
+            $table->integer('id');
+            $table->primary('id', 'foo_fk_parent_pk');
+        });
+
+        Schema::create('foo_fk_child', function (Blueprint $table) {
+            $table->integer('id');
+            $table->integer('parent_id');
+            $table->foreign('parent_id', 'foo_fk_child_parent')
+                ->references('id')
+                ->on('foo_fk_parent')
+                ->cascadeOnDelete();
+        });
+
+        $foreignKeys = Schema::getForeignKeys('foo_fk_child');
+
+        $this->assertTrue(collect($foreignKeys)->contains(function ($foreignKey) {
+            return strtolower($foreignKey['name']) === 'foo_fk_child_parent'
+                && $foreignKey['columns'] === ['parent_id']
+                && $foreignKey['foreign_table'] === 'foo_fk_parent'
+                && $foreignKey['foreign_columns'] === ['id']
+                && $foreignKey['on_delete'] === 'cascade';
+        }));
+
+        Schema::table('foo_fk_child', function (Blueprint $table) {
+            $table->dropForeign('foo_fk_child_parent');
+        });
+
+        $this->assertFalse(collect(Schema::getForeignKeys('foo_fk_child'))->contains(
+            fn ($foreignKey) => strtolower($foreignKey['name']) === 'foo_fk_child_parent'
+        ));
+
+        Schema::drop('foo_fk_child');
+        Schema::drop('foo_fk_parent');
+    }
+
+    #[Test]
     public function it_throws_an_exception_for_creating_temporary_tables()
     {
         Schema::dropIfExists('foo');
@@ -194,5 +301,14 @@ class SchemaTest extends TestCase
         Schema::dropIfExists('foo');
 
         $this->assertFalse(Schema::hasTable('foo'));
+    }
+
+    private function hasIndex(string $table, string $name, ?bool $unique = null, ?bool $primary = null): bool
+    {
+        return collect(Schema::getIndexes($table))->contains(function ($index) use ($name, $unique, $primary) {
+            return strtolower($index['name']) === strtolower($name)
+                && ($unique === null || $index['unique'] === $unique)
+                && ($primary === null || $index['primary'] === $primary);
+        });
     }
 }

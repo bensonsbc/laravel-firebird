@@ -65,6 +65,60 @@ class FirebirdProcessor extends Processor
     }
 
     /**
+     * Process the results of a foreign keys query.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array{name: string|null, columns: list<string>, foreign_schema: string|null, foreign_table: string, foreign_columns: list<string>, on_update: string|null, on_delete: string|null}>
+     */
+    public function processForeignKeys($results)
+    {
+        return array_map(function ($foreignKey) {
+            $foreignKey = (array) $foreignKey;
+
+            return [
+                'name' => strtolower($foreignKey['name']),
+                'columns' => $this->processMetadataList($foreignKey['columns']),
+                'foreign_schema' => null,
+                'foreign_table' => strtolower($foreignKey['foreign_table']),
+                'foreign_columns' => $this->processMetadataList($foreignKey['foreign_columns']),
+                'on_update' => $this->processForeignKeyAction($foreignKey['on_update']),
+                'on_delete' => $this->processForeignKeyAction($foreignKey['on_delete']),
+            ];
+        }, $results);
+    }
+
+    /**
+     * Process a comma-separated Firebird metadata list.
+     *
+     * @param  string|null  $value
+     * @return list<string>
+     */
+    protected function processMetadataList($value)
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        return array_map(
+            fn ($item) => strtolower(trim($item)),
+            explode(',', $value)
+        );
+    }
+
+    /**
+     * Normalize a Firebird foreign key action.
+     *
+     * @param  string|null  $action
+     * @return string|null
+     */
+    protected function processForeignKeyAction($action)
+    {
+        $action = strtolower(trim((string) $action));
+
+        return $action === '' ? null : $action;
+    }
+
+    /**
      * Process an "insert get ID" query.
      *
      * @param  \Illuminate\Database\Query\Builder  $query

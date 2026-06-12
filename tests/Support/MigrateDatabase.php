@@ -98,6 +98,13 @@ trait MigrateDatabase
             // Can be left behind if the test suite exits unexpectedly:
             'contacts',
             'foo',
+            'foo_add_cols',
+            'foo_drop_idx',
+            'foo_fk_child',
+            'foo_fk_parent',
+            'foo_indexes',
+            'foo_pk',
+            'foo_unique',
         ];
 
         foreach ($tables as $table) {

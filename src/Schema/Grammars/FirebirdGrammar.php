@@ -123,6 +123,38 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile the query to determine the foreign keys.
+     *
+     * @param  string|null  $schema
+     * @param  string  $table
+     * @return string
+     */
+    public function compileForeignKeys($schema, $table)
+    {
+        return sprintf(
+            'select trim(rc.rdb$constraint_name) as %s, '
+            .'(select list(trim(seg.rdb$field_name), \',\') from rdb$index_segments seg where seg.rdb$index_name = rc.rdb$index_name) as %s, '
+            .'trim(pk.rdb$relation_name) as %s, '
+            .'(select list(trim(seg.rdb$field_name), \',\') from rdb$index_segments seg where seg.rdb$index_name = pk.rdb$index_name) as %s, '
+            .'trim(ref.rdb$update_rule) as %s, '
+            .'trim(ref.rdb$delete_rule) as %s '
+            .'from rdb$relation_constraints rc '
+            .'join rdb$ref_constraints ref on ref.rdb$constraint_name = rc.rdb$constraint_name '
+            .'join rdb$relation_constraints pk on pk.rdb$constraint_name = ref.rdb$const_name_uq '
+            .'where rc.rdb$constraint_type = \'FOREIGN KEY\' '
+            .'and rc.rdb$relation_name = %s '
+            .'order by rc.rdb$constraint_name',
+            $this->wrapMetadataAlias('name'),
+            $this->wrapMetadataAlias('columns'),
+            $this->wrapMetadataAlias('foreign_table'),
+            $this->wrapMetadataAlias('foreign_columns'),
+            $this->wrapMetadataAlias('on_update'),
+            $this->wrapMetadataAlias('on_delete'),
+            $this->quoteString($this->normalizeObjectName($table)),
+        );
+    }
+
+    /**
      * Compile the query to determine the list of columns.
      *
      * @param  string  $table
@@ -235,7 +267,9 @@ class FirebirdGrammar extends Grammar
     {
         $columns = $this->columnize($command->columns);
 
-        return 'ALTER TABLE '.$this->wrapTable($blueprint)." ADD PRIMARY KEY ({$columns})";
+        $constraint = $command->index ? 'CONSTRAINT '.$this->wrap(substr($command->index, 0, 31)).' ' : '';
+
+        return 'ALTER TABLE '.$this->wrapTable($blueprint)." ADD {$constraint}PRIMARY KEY ({$columns})";
     }
 
     /**
@@ -294,7 +328,7 @@ class FirebirdGrammar extends Grammar
 
         $onColumns = $this->columnize((array) $command->references);
 
-        $fkName = substr($command->index, 0, 31);
+        $fkName = $this->wrap(substr($command->index, 0, 31));
 
         $sql = "ALTER TABLE {$table} ADD CONSTRAINT {$fkName} ";
 
@@ -325,7 +359,43 @@ class FirebirdGrammar extends Grammar
     {
         $table = $this->wrapTable($blueprint);
 
-        return "ALTER TABLE {$table} DROP CONSTRAINT {$command->index}";
+        return "ALTER TABLE {$table} DROP CONSTRAINT {$this->wrap($command->index)}";
+    }
+
+    /**
+     * Compile a drop primary key command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileDropPrimary(Blueprint $blueprint, Fluent $command)
+    {
+        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($command->index);
+    }
+
+    /**
+     * Compile a drop unique key command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileDropUnique(Blueprint $blueprint, Fluent $command)
+    {
+        return 'ALTER TABLE '.$this->wrapTable($blueprint).' DROP CONSTRAINT '.$this->wrap($command->index);
+    }
+
+    /**
+     * Compile a drop index command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileDropIndex(Blueprint $blueprint, Fluent $command)
+    {
+        return 'DROP INDEX '.$this->wrap($command->index);
     }
 
     /**
