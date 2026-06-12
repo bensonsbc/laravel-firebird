@@ -15,6 +15,7 @@ trait MigrateDatabase
 
         if (! MigrationState::$migrated) {
             $this->dropTables();
+            $this->dropGenerators();
             $this->createTables();
 
             $this->dropProcedures();
@@ -34,9 +35,13 @@ trait MigrateDatabase
 
     public function createTables(): void
     {
-        DB::select('CREATE TABLE "users" ("id" INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY, "name" VARCHAR(255) NOT NULL, "email" VARCHAR(255) NOT NULL, "city" VARCHAR(255), "state" VARCHAR(255), "post_code" VARCHAR(255), "country" VARCHAR(255), "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
+        DB::select('CREATE TABLE "users" ("id" INTEGER NOT NULL PRIMARY KEY, "name" VARCHAR(255) NOT NULL, "email" VARCHAR(255) NOT NULL, "city" VARCHAR(255), "state" VARCHAR(255), "post_code" VARCHAR(255), "country" VARCHAR(255), "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
+        DB::select('CREATE GENERATOR "users_id_gen"');
+        DB::select('CREATE TRIGGER "users_bi" FOR "users" ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (NEW."id" IS NULL) THEN NEW."id" = GEN_ID("users_id_gen", 1); END');
 
-        DB::select('CREATE TABLE "orders" ("id" INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY, "user_id" INTEGER NOT NULL, "name" VARCHAR(255) NOT NULL, "price" INTEGER NOT NULL, "quantity" INTEGER NOT NULL, "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
+        DB::select('CREATE TABLE "orders" ("id" INTEGER NOT NULL PRIMARY KEY, "user_id" INTEGER NOT NULL, "name" VARCHAR(255) NOT NULL, "price" INTEGER NOT NULL, "quantity" INTEGER NOT NULL, "created_at" TIMESTAMP, "updated_at" TIMESTAMP, "deleted_at" TIMESTAMP)');
+        DB::select('CREATE GENERATOR "orders_id_gen"');
+        DB::select('CREATE TRIGGER "orders_bi" FOR "orders" ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (NEW."id" IS NULL) THEN NEW."id" = GEN_ID("orders_id_gen", 1); END');
         DB::select('ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_foreign" FOREIGN KEY ("user_id") REFERENCES "users" ("id")');
     }
 
@@ -52,6 +57,25 @@ trait MigrateDatabase
 
         foreach ($tables as $table) {
             Schema::dropIfExists($table);
+        }
+    }
+
+    public function dropGenerators(): void
+    {
+        $generators = [
+            'orders_id_gen',
+            'users_id_gen',
+        ];
+
+        foreach ($generators as $generator) {
+            try {
+                DB::select('drop generator '.DB::getQueryGrammar()->wrap($generator));
+            } catch (QueryException $e) {
+                // Suppress the "not found" exception.
+                if (! Str::contains($e->getMessage(), ['not found', 'not defined'])) {
+                    throw $e;
+                }
+            }
         }
     }
 
