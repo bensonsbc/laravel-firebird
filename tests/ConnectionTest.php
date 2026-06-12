@@ -32,6 +32,52 @@ class ConnectionTest extends TestCase
     }
 
     #[Test]
+    public function it_uses_the_configured_server_version_for_feature_detection()
+    {
+        $legacy = $this->makeOfflineConnection(['server_version' => '2.5.9']);
+
+        $this->assertSame('2.5.9', $legacy->getServerVersion());
+        $this->assertFalse($legacy->supportsIdentityColumns());
+        $this->assertFalse($legacy->supportsTimeZoneTypes());
+        $this->assertFalse($legacy->supportsAlterColumnNullability());
+        $this->assertSame(31, $legacy->getMaxIdentifierLength());
+
+        $modern = $this->makeOfflineConnection(['server_version' => '5.0.3']);
+
+        $this->assertTrue($modern->supportsIdentityColumns());
+        $this->assertTrue($modern->supportsTimeZoneTypes());
+        $this->assertTrue($modern->supportsAlterColumnNullability());
+        $this->assertSame(63, $modern->getMaxIdentifierLength());
+
+        $firebirdThree = $this->makeOfflineConnection(['server_version' => '3.0.10']);
+
+        $this->assertTrue($firebirdThree->supportsIdentityColumns());
+        $this->assertFalse($firebirdThree->supportsTimeZoneTypes());
+        $this->assertSame(31, $firebirdThree->getMaxIdentifierLength());
+    }
+
+    #[Test]
+    public function it_keeps_legacy_generators_for_dialect_one_connections()
+    {
+        $connection = $this->makeOfflineConnection([
+            'server_version' => '5.0.3',
+            'dialect' => '1',
+        ]);
+
+        $this->assertFalse($connection->supportsIdentityColumns());
+    }
+
+    protected function makeOfflineConnection(array $config = [])
+    {
+        return new FirebirdConnection(
+            fn () => throw new RuntimeException('The offline connection tests must not connect to Firebird.'),
+            '',
+            '',
+            $config
+        );
+    }
+
+    #[Test]
     public function it_gets_default_query_grammar()
     {
         $connection = DB::connection();

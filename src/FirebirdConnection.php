@@ -17,6 +17,13 @@ use Throwable;
 class FirebirdConnection extends DatabaseConnection
 {
     /**
+     * The Firebird server version detected from the active connection.
+     *
+     * @var string|null
+     */
+    protected $detectedServerVersion;
+
+    /**
      * {@inheritDoc}
      */
     public function getDriverTitle()
@@ -27,15 +34,88 @@ class FirebirdConnection extends DatabaseConnection
     /**
      * Get the server version for the connection.
      *
+     * A `server_version` config value takes precedence over detection, so
+     * deployments can pin the version without a connection round trip.
+     *
      * @return string
      */
     public function getServerVersion(): string
+    {
+        $configured = (string) $this->getConfig('server_version');
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return $this->detectedServerVersion ??= $this->detectServerVersion();
+    }
+
+    /**
+     * Detect the server version from the PDO connection.
+     *
+     * @return string
+     */
+    protected function detectServerVersion()
     {
         $version = $this->getPdo()->getAttribute(PDO::ATTR_SERVER_VERSION);
 
         return Str::match('/\(remote server\), version "\w+-V(\d+\.\d+\.\d+)/', $version)
             ?: Str::match('/\w+-V(\d+\.\d+\.\d+)/', $version)
             ?: $version;
+    }
+
+    /**
+     * Determine whether the server is at least the given version.
+     *
+     * @param  string  $version
+     * @return bool
+     */
+    public function isServerVersionAtLeast(string $version): bool
+    {
+        return version_compare($this->getServerVersion(), $version, '>=');
+    }
+
+    /**
+     * Determine whether the connection can use identity columns (Firebird 3+).
+     *
+     * Dialect 1 connections keep the legacy generator strategy.
+     *
+     * @return bool
+     */
+    public function supportsIdentityColumns(): bool
+    {
+        return (string) $this->getConfig('dialect') !== '1'
+            && $this->isServerVersionAtLeast('3.0');
+    }
+
+    /**
+     * Determine whether the server supports time zone types (Firebird 4+).
+     *
+     * @return bool
+     */
+    public function supportsTimeZoneTypes(): bool
+    {
+        return $this->isServerVersionAtLeast('4.0');
+    }
+
+    /**
+     * Determine whether ALTER COLUMN SET/DROP NOT NULL is available (Firebird 3+).
+     *
+     * @return bool
+     */
+    public function supportsAlterColumnNullability(): bool
+    {
+        return $this->isServerVersionAtLeast('3.0');
+    }
+
+    /**
+     * Get the maximum identifier length supported by the server.
+     *
+     * @return int
+     */
+    public function getMaxIdentifierLength(): int
+    {
+        return $this->isServerVersionAtLeast('4.0') ? 63 : 31;
     }
 
     /**
