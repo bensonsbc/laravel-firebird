@@ -86,13 +86,13 @@ class QueryTest extends TestCase
 
         $this->assertCount(3, (array) $result);
 
-        $this->assertObjectHasProperty('USER_NAME', $result);
+        $this->assertObjectHasProperty('user_name', $result);
         $this->assertObjectHasProperty('user_city', $result);
-        $this->assertObjectHasProperty('User_Country', $result);
+        $this->assertObjectHasProperty('user_country', $result);
 
-        $this->assertEquals('Anna', $result->USER_NAME);
+        $this->assertEquals('Anna', $result->user_name);
         $this->assertEquals('Sydney', $result->user_city);
-        $this->assertEquals('Australia', $result->User_Country);
+        $this->assertEquals('Australia', $result->user_country);
     }
 
     #[Test]

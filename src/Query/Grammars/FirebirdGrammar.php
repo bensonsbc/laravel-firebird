@@ -333,6 +333,10 @@ class FirebirdGrammar extends Grammar
             $sql .= ' '.$this->compileOrders($query, $query->unionOrders);
         }
 
+        if ($this->usesFirstSkipPagination()) {
+            return ltrim($sql.' '.$this->compileUnionRows($query));
+        }
+
         if (isset($query->unionOffset)) {
             $sql .= ' '.$this->compileOffset($query, $query->unionOffset);
         }
@@ -342,6 +346,36 @@ class FirebirdGrammar extends Grammar
         }
 
         return ltrim($sql);
+    }
+
+    /**
+     * Compile Firebird ROWS pagination for union queries.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function compileUnionRows(Builder $query)
+    {
+        $hasLimit = isset($query->unionLimit);
+        $hasOffset = isset($query->unionOffset);
+
+        if (! $hasLimit && ! $hasOffset) {
+            return '';
+        }
+
+        $offset = $hasOffset ? (int) $query->unionOffset : 0;
+
+        if ($hasLimit) {
+            $limit = (int) $query->unionLimit;
+
+            if ($offset === 0) {
+                return 'rows '.$limit;
+            }
+
+            return 'rows '.($offset + 1).' to '.($offset + $limit);
+        }
+
+        return 'rows '.($offset + 1).' to 2147483647';
     }
 
     /**
