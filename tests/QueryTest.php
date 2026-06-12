@@ -1004,6 +1004,18 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_filter_where_like_with_case_sensitivity()
+    {
+        User::factory()->create(['name' => 'Anna Maria']);
+        User::factory()->create(['name' => 'Bruno']);
+
+        $this->assertSame(1, DB::table('users')->whereLike('name', 'anna%')->count());
+        $this->assertSame(0, DB::table('users')->whereLike('name', 'anna%', true)->count());
+        $this->assertSame(1, DB::table('users')->whereLike('name', 'Anna%', true)->count());
+        $this->assertSame(1, DB::table('users')->whereNotLike('name', 'anna%')->count());
+    }
+
+    #[Test]
     public function it_can_check_exists()
     {
         User::factory()->count(2)->create(['name' => $name = fake()->name()]);

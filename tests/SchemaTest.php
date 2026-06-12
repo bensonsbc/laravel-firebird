@@ -248,6 +248,52 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_reports_auto_increment_columns_in_introspection()
+    {
+        Schema::dropIfExists('foo_identity');
+
+        try {
+            Schema::create('foo_identity', function (Blueprint $table) {
+                $table->increments('id');
+                $table->string('name');
+            });
+
+            $columns = collect(Schema::getColumns('foo_identity'));
+
+            if (DB::connection()->supportsIdentityColumns()) {
+                $this->assertTrue($columns->firstWhere('name', 'id')['auto_increment']);
+            } else {
+                $this->assertFalse($columns->firstWhere('name', 'id')['auto_increment']);
+            }
+
+            $this->assertFalse($columns->firstWhere('name', 'name')['auto_increment']);
+        } finally {
+            Schema::dropIfExists('foo_identity');
+        }
+    }
+
+    #[Test]
+    public function it_stores_table_and_column_comments()
+    {
+        Schema::dropIfExists('foo_comments');
+
+        try {
+            Schema::create('foo_comments', function (Blueprint $table) {
+                $table->comment('Comments table');
+                $table->integer('id');
+                $table->string('name')->comment('Full name');
+            });
+
+            $columns = collect(Schema::getColumns('foo_comments'));
+
+            $this->assertSame('Full name', $columns->firstWhere('name', 'name')['comment']);
+            $this->assertNull($columns->firstWhere('name', 'id')['comment']);
+        } finally {
+            Schema::dropIfExists('foo_comments');
+        }
+    }
+
+    #[Test]
     public function it_can_truncate_tables_and_restart_auto_increment_generators()
     {
         Schema::dropIfExists('foo_truncate');
