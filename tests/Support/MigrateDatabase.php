@@ -94,6 +94,7 @@ trait MigrateDatabase
     {
         $tables = [
             'orders',
+            'order_user',
             'users',
             // Can be left behind if the test suite exits unexpectedly:
             'contacts',

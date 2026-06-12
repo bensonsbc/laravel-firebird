@@ -5,6 +5,8 @@ namespace Benson\LaravelFirebird\Tests;
 use Benson\LaravelFirebird\Tests\Support\MigrateDatabase;
 use Benson\LaravelFirebird\Tests\Support\Models\Order;
 use Benson\LaravelFirebird\Tests\Support\Models\User;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 
 class ModelTest extends TestCase
@@ -153,6 +155,52 @@ class ModelTest extends TestCase
         $this->assertTrue($orders->every(
             fn (Order $order) => $order->user_id === $user->id
         ));
+    }
+
+    #[Test]
+    public function it_can_manage_belongs_to_many_pivots()
+    {
+        Schema::dropIfExists('order_user');
+
+        Schema::create('order_user', function (Blueprint $table) {
+            $table->integer('user_id');
+            $table->integer('order_id');
+            $table->string('status')->nullable();
+            $table->timestamps();
+        });
+
+        try {
+            $user = User::factory()->create();
+            $otherUser = User::factory()->create();
+            $firstOrder = Order::factory()->create(['user_id' => $user->id]);
+            $secondOrder = Order::factory()->create(['user_id' => $user->id]);
+
+            $user->purchasedOrders()->attach($firstOrder->id, ['status' => 'new']);
+
+            $this->assertSame(1, $user->purchasedOrders()->count());
+            $this->assertTrue($user->purchasedOrders->first()->is($firstOrder));
+            $this->assertSame('new', $user->purchasedOrders->first()->pivot->status);
+
+            $user->purchasedOrders()->sync([
+                $secondOrder->id => ['status' => 'synced'],
+            ]);
+
+            $this->assertSame(1, $user->fresh()->purchasedOrders()->count());
+            $this->assertTrue($user->fresh()->purchasedOrders->first()->is($secondOrder));
+            $this->assertSame('synced', $secondOrder->purchasers()->first()->pivot->status);
+
+            $secondOrder->purchasers()->attach($otherUser->id, ['status' => 'shared']);
+
+            $this->assertSame(2, $secondOrder->purchasers()->count());
+
+            $user->purchasedOrders()->detach($secondOrder->id);
+
+            $this->assertSame(0, $user->fresh()->purchasedOrders()->count());
+            $this->assertSame(1, $secondOrder->fresh()->purchasers()->count());
+            $this->assertTrue($secondOrder->fresh()->purchasers->first()->is($otherUser));
+        } finally {
+            Schema::dropIfExists('order_user');
+        }
     }
 
     #[Test]

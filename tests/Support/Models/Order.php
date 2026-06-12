@@ -19,4 +19,11 @@ class Order extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function purchasers()
+    {
+        return $this->belongsToMany(User::class, 'order_user')
+            ->withPivot('status')
+            ->withTimestamps();
+    }
 }
