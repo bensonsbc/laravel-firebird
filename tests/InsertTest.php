@@ -123,6 +123,63 @@ class InsertTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function it_inserts_rows_using_a_subquery()
+    {
+        $affected = DB::table('MR_USERS')->insertUsing(
+            ['ID', 'NAME', 'EMAIL', 'CREATED_AT', 'UPDATED_AT'],
+            $this->userSource([
+                'ID' => 30,
+                'NAME' => 'Inserted From Select',
+                'EMAIL' => 'insert-using@example.com',
+            ])
+        );
+
+        $this->assertSame(1, $affected);
+        $this->assertDatabaseHas('MR_USERS', [
+            'ID' => 30,
+            'EMAIL' => 'insert-using@example.com',
+        ]);
+    }
+
+    #[Test]
+    public function it_ignores_duplicates_when_inserting_using_a_subquery()
+    {
+        DB::table('MR_USERS')->insert($this->userAttributes([
+            'ID' => 40,
+            'EMAIL' => 'existing-using@example.com',
+        ]));
+
+        $source = $this->userSource([
+            'ID' => 40,
+            'NAME' => 'Duplicate From Select',
+            'EMAIL' => 'duplicate-using@example.com',
+        ])->unionAll($this->userSource([
+            'ID' => 41,
+            'NAME' => 'New From Select',
+            'EMAIL' => 'new-using@example.com',
+        ]));
+
+        $affected = DB::table('MR_USERS')->insertOrIgnoreUsing(
+            ['ID', 'NAME', 'EMAIL', 'CREATED_AT', 'UPDATED_AT'],
+            $source
+        );
+
+        $this->assertSame(1, $affected);
+        $this->assertDatabaseHas('MR_USERS', [
+            'ID' => 40,
+            'EMAIL' => 'existing-using@example.com',
+        ]);
+        $this->assertDatabaseHas('MR_USERS', [
+            'ID' => 41,
+            'EMAIL' => 'new-using@example.com',
+        ]);
+        $this->assertDatabaseMissing('MR_USERS', [
+            'ID' => 40,
+            'EMAIL' => 'duplicate-using@example.com',
+        ]);
+    }
+
     protected function recreateTable()
     {
         DB::select('recreate table MR_USERS (ID integer not null primary key, NAME varchar(255) not null, EMAIL varchar(255) not null, CREATED_AT timestamp, UPDATED_AT timestamp)');
@@ -142,5 +199,23 @@ class InsertTest extends TestCase
             'CREATED_AT' => now()->toDateTimeString(),
             'UPDATED_AT' => now()->toDateTimeString(),
         ], $overrides);
+    }
+
+    protected function userSource(array $overrides = [])
+    {
+        $attributes = $this->userAttributes($overrides);
+
+        return DB::query()
+            ->selectRaw(
+                'cast(? as integer) as ID, cast(? as varchar(255)) as NAME, cast(? as varchar(255)) as EMAIL, cast(? as timestamp) as CREATED_AT, cast(? as timestamp) as UPDATED_AT',
+                [
+                    $attributes['ID'],
+                    $attributes['NAME'],
+                    $attributes['EMAIL'],
+                    $attributes['CREATED_AT'],
+                    $attributes['UPDATED_AT'],
+                ]
+            )
+            ->from('RDB$DATABASE');
     }
 }

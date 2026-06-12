@@ -630,6 +630,40 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile an insert ignore statement using a subquery into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $columns
+     * @param  string  $sql
+     * @return string
+     */
+    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql)
+    {
+        $table = $this->wrapTable($query->from);
+
+        if (empty($columns) || $columns === ['*']) {
+            return "insert into {$table} {$sql}";
+        }
+
+        $matchingColumns = $this->resolveInsertOrIgnoreMatchingColumns($columns);
+
+        $whereNotExists = implode(' and ', array_map(
+            fn ($column) => $this->wrap('T.'.$column).' = '.$this->wrap('V.'.$column),
+            $matchingColumns
+        ));
+
+        return sprintf(
+            'insert into %s (%s) select %s from (%s) V where not exists (select 1 from %s T where %s)',
+            $table,
+            $this->columnize($columns),
+            implode(', ', array_map(fn ($column) => $this->wrap('V.'.$column), $columns)),
+            $sql,
+            $table,
+            $whereNotExists
+        );
+    }
+
+    /**
      * Compile an "upsert" statement into SQL.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
