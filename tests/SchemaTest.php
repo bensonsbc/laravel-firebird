@@ -102,6 +102,32 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_create_auto_incrementing_columns()
+    {
+        Schema::dropIfExists('foo_increment');
+
+        try {
+            Schema::create('foo_increment', function (Blueprint $table) {
+                $table->increments('id');
+                $table->string('name');
+            });
+
+            $id = DB::table('foo_increment')->insertGetId([
+                'name' => 'Generated id',
+            ], 'id');
+
+            $this->assertSame(1, (int) $id);
+            $this->assertDatabaseHas('foo_increment', [
+                'id' => 1,
+                'name' => 'Generated id',
+            ]);
+            $this->assertTrue($this->hasPrimaryIndex('foo_increment', ['id']));
+        } finally {
+            Schema::dropIfExists('foo_increment');
+        }
+    }
+
+    #[Test]
     public function it_can_add_columns_to_a_table()
     {
         Schema::dropIfExists('foo_add_cols');
@@ -487,6 +513,13 @@ class SchemaTest extends TestCase
             return strtolower($index['name']) === strtolower($name)
                 && ($unique === null || $index['unique'] === $unique)
                 && ($primary === null || $index['primary'] === $primary);
+        });
+    }
+
+    private function hasPrimaryIndex(string $table, array $columns): bool
+    {
+        return collect(Schema::getIndexes($table))->contains(function ($index) use ($columns) {
+            return $index['primary'] === true && $index['columns'] === $columns;
         });
     }
 }

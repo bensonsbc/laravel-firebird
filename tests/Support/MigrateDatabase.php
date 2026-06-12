@@ -106,6 +106,7 @@ trait MigrateDatabase
             'foo_enum',
             'foo_fk_child',
             'foo_fk_parent',
+            'foo_increment',
             'foo_indexes',
             'foo_pk',
             'foo_renamed_table',

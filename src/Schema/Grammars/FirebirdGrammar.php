@@ -186,7 +186,9 @@ class FirebirdGrammar extends Grammar
 
         $sql = 'create table '.$this->wrapTable($blueprint)." ($columns)";
 
-        return $sql;
+        $autoIncrementStatements = $this->compileAutoIncrementObjects($blueprint);
+
+        return $autoIncrementStatements === [] ? $sql : array_merge([$sql], $autoIncrementStatements);
     }
 
     /**
@@ -242,6 +244,69 @@ class FirebirdGrammar extends Grammar
         return (string) $this->connection->getConfig('dialect') === '1'
             ? $alias
             : '"'.$alias.'"';
+    }
+
+    /**
+     * Compile generator and trigger statements for auto-increment columns.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @return list<string>
+     */
+    protected function compileAutoIncrementObjects(Blueprint $blueprint)
+    {
+        $statements = [];
+
+        foreach ($blueprint->getColumns() as $column) {
+            if (! in_array($column->type, $this->serials) || ! $column->autoIncrement) {
+                continue;
+            }
+
+            $generator = $this->autoIncrementGeneratorName($blueprint, $column);
+            $trigger = $this->autoIncrementTriggerName($blueprint, $column);
+
+            $statements[] = sprintf(
+                'execute block as begin if (not exists(select 1 from rdb$generators where rdb$generator_name = %s)) then execute statement %s; end',
+                $this->quoteString($this->normalizeObjectName($generator)),
+                $this->quoteString('create generator '.$this->wrap($generator)),
+            );
+
+            $statements[] = 'set generator '.$this->wrap($generator).' to 0';
+
+            $statements[] = sprintf(
+                'CREATE TRIGGER %s FOR %s ACTIVE BEFORE INSERT POSITION 0 AS BEGIN IF (%s IS NULL) THEN %s = GEN_ID(%s, 1); END',
+                $this->wrap($trigger),
+                $this->wrapTable($blueprint),
+                'NEW.'.$this->wrap($column->name),
+                'NEW.'.$this->wrap($column->name),
+                $this->wrap($generator),
+            );
+        }
+
+        return $statements;
+    }
+
+    /**
+     * Get the generator name for an auto-increment column.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function autoIncrementGeneratorName(Blueprint $blueprint, Fluent $column)
+    {
+        return substr($blueprint->getTable().'_'.$column->name.'_gen', 0, 31);
+    }
+
+    /**
+     * Get the trigger name for an auto-increment column.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function autoIncrementTriggerName(Blueprint $blueprint, Fluent $column)
+    {
+        return substr($blueprint->getTable().'_'.$column->name.'_bi', 0, 31);
     }
 
     /**
@@ -503,6 +568,20 @@ class FirebirdGrammar extends Grammar
     {
         if (! is_null($column->collation)) {
             return ' COLLATE '.$column->collation;
+        }
+    }
+
+    /**
+     * Get the SQL for an auto-increment column modifier.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string|null
+     */
+    protected function modifyIncrement(Blueprint $blueprint, Fluent $column)
+    {
+        if (in_array($column->type, $this->serials) && $column->autoIncrement) {
+            return ' PRIMARY KEY';
         }
     }
 
