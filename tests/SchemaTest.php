@@ -235,6 +235,39 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_truncate_tables_and_restart_auto_increment_generators()
+    {
+        Schema::dropIfExists('foo_truncate');
+
+        try {
+            Schema::create('foo_truncate', function (Blueprint $table) {
+                $table->increments('id');
+                $table->string('name');
+            });
+
+            DB::table('foo_truncate')->insert([
+                ['name' => 'First row'],
+                ['name' => 'Second row'],
+            ]);
+
+            DB::table('foo_truncate')->truncate();
+
+            $id = DB::table('foo_truncate')->insertGetId([
+                'name' => 'After truncate',
+            ], 'id');
+
+            $this->assertSame(1, DB::table('foo_truncate')->count());
+            $this->assertSame(1, (int) $id);
+            $this->assertDatabaseHas('foo_truncate', [
+                'id' => 1,
+                'name' => 'After truncate',
+            ]);
+        } finally {
+            Schema::dropIfExists('foo_truncate');
+        }
+    }
+
+    #[Test]
     public function it_can_add_columns_to_a_table()
     {
         Schema::dropIfExists('foo_add_cols');

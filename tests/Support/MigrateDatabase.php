@@ -116,6 +116,7 @@ trait MigrateDatabase
             'foo_renamed_table',
             'foo_rename_col',
             'foo_rename_table',
+            'foo_truncate',
             'foo_unique',
         ];
 
