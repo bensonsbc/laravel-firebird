@@ -77,6 +77,23 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile the query to determine the views.
+     *
+     * @param  string|string[]|null  $schema
+     * @return string
+     */
+    public function compileViews($schema)
+    {
+        return 'select trim(trailing from rdb$relation_name) as '.$this->wrapMetadataAlias('name').', '
+            .'cast(null as varchar(31)) as '.$this->wrapMetadataAlias('schema').', '
+            .'rdb$view_source as '.$this->wrapMetadataAlias('definition').' '
+            .'from rdb$relations '
+            .'where rdb$relation_type = 1 '
+            .'and (rdb$system_flag is null or rdb$system_flag = 0) '
+            .'order by rdb$relation_name';
+    }
+
+    /**
      * Compile the query to determine the columns.
      *
      * @param  string|null  $schema

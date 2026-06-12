@@ -54,6 +54,38 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_gets_views()
+    {
+        $view = DB::getQueryGrammar()->wrapTable('foo_user_view');
+
+        try {
+            DB::statement(sprintf(
+                'create view %s as select %s, %s from %s',
+                $view,
+                DB::getQueryGrammar()->wrap('id'),
+                DB::getQueryGrammar()->wrap('name'),
+                DB::getQueryGrammar()->wrapTable('users'),
+            ));
+
+            $this->assertTrue(Schema::hasView('foo_user_view'));
+
+            $views = Schema::getViews();
+
+            $this->assertTrue(collect($views)->contains(function ($view) {
+                return $view['name'] === 'foo_user_view'
+                    && $view['schema'] === null
+                    && str_contains(strtolower($view['definition']), 'select');
+            }));
+        } finally {
+            try {
+                DB::statement('drop view '.$view);
+            } catch (QueryException) {
+                //
+            }
+        }
+    }
+
+    #[Test]
     public function it_has_column()
     {
         $this->assertTrue(Schema::hasColumn('users', 'id'));

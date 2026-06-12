@@ -25,6 +25,23 @@ class FirebirdProcessor extends Processor
     }
 
     /**
+     * Process the results of a views query.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array{name: string, schema: string|null, schema_qualified_name: string, definition: string}>
+     */
+    public function processViews($results)
+    {
+        return array_map(function ($view) {
+            $view = parent::processViews([$view])[0];
+            $view['name'] = strtolower($view['name']);
+            $view['schema_qualified_name'] = $view['schema'] ? $view['schema'].'.'.$view['name'] : $view['name'];
+
+            return $view;
+        }, $results);
+    }
+
+    /**
      * Process the results of a columns query.
      *
      * @param  list<array<string, mixed>>  $results

@@ -1573,6 +1573,24 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_insert_null_values()
+    {
+        $id = DB::table('users')->insertGetId([
+            'name' => 'Nullable City',
+            'email' => 'nullable-city@example.com',
+            'city' => null,
+            'country' => 'Brazil',
+        ], 'id');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $id,
+            'name' => 'Nullable City',
+            'city' => null,
+            'country' => 'Brazil',
+        ]);
+    }
+
+    #[Test]
     public function it_can_execute_stored_procedures()
     {
         $firstNumber = random_int(1, 10);
