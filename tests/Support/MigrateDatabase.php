@@ -102,6 +102,8 @@ trait MigrateDatabase
             'foo_change_col',
             'foo_change_mods',
             'foo_column_types',
+            'foo_drop_all_child',
+            'foo_drop_all_parent',
             'foo_drop_idx',
             'foo_drop_cols',
             'foo_enum',

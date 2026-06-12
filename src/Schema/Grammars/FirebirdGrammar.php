@@ -86,7 +86,7 @@ class FirebirdGrammar extends Grammar
     {
         return 'select trim(trailing from rdb$relation_name) as '.$this->wrapMetadataAlias('name').', '
             .'cast(null as varchar(31)) as '.$this->wrapMetadataAlias('schema').', '
-            .'rdb$view_source as '.$this->wrapMetadataAlias('definition').' '
+            .'cast(rdb$view_source as varchar(8191)) as '.$this->wrapMetadataAlias('definition').' '
             .'from rdb$relations '
             .'where rdb$relation_type = 1 '
             .'and (rdb$system_flag is null or rdb$system_flag = 0) '

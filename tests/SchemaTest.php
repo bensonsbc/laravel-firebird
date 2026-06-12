@@ -82,6 +82,48 @@ class SchemaTest extends TestCase
             } catch (QueryException) {
                 //
             }
+
+            DB::disconnect();
+        }
+    }
+
+    #[Test]
+    public function it_can_drop_all_views()
+    {
+        $firstView = DB::getQueryGrammar()->wrapTable('foo_first_view');
+        $secondView = DB::getQueryGrammar()->wrapTable('foo_second_view');
+
+        try {
+            DB::statement(sprintf(
+                'create view %s as select %s from %s',
+                $firstView,
+                DB::getQueryGrammar()->wrap('id'),
+                DB::getQueryGrammar()->wrapTable('users'),
+            ));
+            DB::statement(sprintf(
+                'create view %s as select %s from %s',
+                $secondView,
+                DB::getQueryGrammar()->wrap('id'),
+                DB::getQueryGrammar()->wrapTable('orders'),
+            ));
+
+            $this->assertTrue(Schema::hasView('foo_first_view'));
+            $this->assertTrue(Schema::hasView('foo_second_view'));
+
+            Schema::dropAllViews();
+
+            $this->assertFalse(Schema::hasView('foo_first_view'));
+            $this->assertFalse(Schema::hasView('foo_second_view'));
+        } finally {
+            foreach ([$firstView, $secondView] as $view) {
+                try {
+                    DB::statement('drop view '.$view);
+                } catch (QueryException) {
+                    //
+                }
+            }
+
+            DB::disconnect();
         }
     }
 
