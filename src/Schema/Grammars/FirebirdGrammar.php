@@ -526,6 +526,10 @@ class FirebirdGrammar extends Grammar
      */
     protected function typeBigInteger(Fluent $column)
     {
+        if ((string) $this->connection->getConfig('dialect') === '1') {
+            return 'NUMERIC(18, 0)';
+        }
+
         return 'BIGINT';
     }
 
@@ -683,6 +687,10 @@ class FirebirdGrammar extends Grammar
      */
     protected function typeTime(Fluent $column)
     {
+        if ((string) $this->connection->getConfig('dialect') === '1') {
+            return 'VARCHAR(15)';
+        }
+
         return 'TIME';
     }
 
