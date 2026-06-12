@@ -327,6 +327,35 @@ class GrammarTest extends TestCase
         $connection->table('pedido')->groupLimit(3, 'clienteid')->toSql();
     }
 
+    #[Test]
+    public function it_splits_oversized_in_lists_into_multiple_groups()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $sql = $connection->table('cliente')->whereIn('clienteid', range(1, 1600))->toSql();
+
+        $this->assertSame(1600, substr_count($sql, '?'));
+        $this->assertStringContainsString('where (CLIENTEID in (', $sql);
+        $this->assertStringContainsString(') or CLIENTEID in (', $sql);
+
+        $sql = $connection->table('cliente')->whereNotIn('clienteid', range(1, 1600))->toSql();
+
+        $this->assertStringContainsString(') and CLIENTEID not in (', $sql);
+
+        $sql = $connection->table('cliente')->whereIntegerInRaw('clienteid', range(1, 1600))->toSql();
+
+        $this->assertStringContainsString(') or CLIENTEID in (', $sql);
+        $this->assertStringNotContainsString('?', $sql);
+
+        // Small lists keep the plain syntax.
+        $sql = $connection->table('cliente')->whereIn('clienteid', [1, 2, 3])->toSql();
+
+        $this->assertSame('select * from CLIENTE where CLIENTEID in (?, ?, ?)', $sql);
+    }
+
     protected function makeConnection(array $config = [])
     {
         return new FirebirdConnection(

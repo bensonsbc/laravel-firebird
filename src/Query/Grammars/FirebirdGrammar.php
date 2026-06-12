@@ -495,6 +495,91 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * The maximum number of values in a single Firebird IN list.
+     *
+     * Servers before Firebird 5 reject IN lists with 1500 or more items, so
+     * larger lists are split into multiple IN groups.
+     *
+     * @var int
+     */
+    protected $maxInListSize = 1499;
+
+    /**
+     * Compile a "where in" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereIn(Builder $query, $where)
+    {
+        return $this->compileChunkedIn($query, $where, 'whereIn', ' or ')
+            ?? parent::whereIn($query, $where);
+    }
+
+    /**
+     * Compile a "where not in" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereNotIn(Builder $query, $where)
+    {
+        return $this->compileChunkedIn($query, $where, 'whereNotIn', ' and ')
+            ?? parent::whereNotIn($query, $where);
+    }
+
+    /**
+     * Compile a "where in raw" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereInRaw(Builder $query, $where)
+    {
+        return $this->compileChunkedIn($query, $where, 'whereInRaw', ' or ')
+            ?? parent::whereInRaw($query, $where);
+    }
+
+    /**
+     * Compile a "where not in raw" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereNotInRaw(Builder $query, $where)
+    {
+        return $this->compileChunkedIn($query, $where, 'whereNotInRaw', ' and ')
+            ?? parent::whereNotInRaw($query, $where);
+    }
+
+    /**
+     * Split an oversized IN list into multiple grouped IN clauses.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @param  string  $method
+     * @param  string  $glue
+     * @return string|null
+     */
+    protected function compileChunkedIn(Builder $query, $where, $method, $glue)
+    {
+        if (! is_array($where['values']) || count($where['values']) <= $this->maxInListSize) {
+            return null;
+        }
+
+        $segments = array_map(
+            fn ($chunk) => parent::{$method}($query, array_merge($where, ['values' => $chunk])),
+            array_chunk($where['values'], $this->maxInListSize)
+        );
+
+        return '('.implode($glue, $segments).')';
+    }
+
+    /**
      * Compile a "where like" clause.
      *
      * Firebird's LIKE is case sensitive, so case insensitive comparisons
