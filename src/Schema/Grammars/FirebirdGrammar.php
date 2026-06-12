@@ -13,7 +13,7 @@ class FirebirdGrammar extends Grammar
      *
      * @var array
      */
-    protected $modifiers = ['Charset', 'Collate', 'Increment', 'Nullable', 'Default'];
+    protected $modifiers = ['Charset', 'Collate', 'Increment', 'Default', 'Nullable'];
 
     /**
      * The columns available as serials.
@@ -90,6 +90,34 @@ class FirebirdGrammar extends Grammar
             .'from rdb$relation_fields where rdb$relation_name = %s '
             .'order by rdb$field_position',
             $this->wrapMetadataAlias('name'),
+            $this->quoteString($this->normalizeObjectName($table)),
+        );
+    }
+
+    /**
+     * Compile the query to determine the indexes.
+     *
+     * @param  string|null  $schema
+     * @param  string  $table
+     * @return string
+     */
+    public function compileIndexes($schema, $table)
+    {
+        return sprintf(
+            'select trim(ix.rdb$index_name) as %s, '
+            .'list(trim(seg.rdb$field_name), \',\') as %s, '
+            .'case when ix.rdb$unique_flag = 1 then 1 else 0 end as %s, '
+            .'case when rc.rdb$constraint_type = \'PRIMARY KEY\' then 1 else 0 end as %s '
+            .'from rdb$indices ix '
+            .'join rdb$index_segments seg on seg.rdb$index_name = ix.rdb$index_name '
+            .'left join rdb$relation_constraints rc on rc.rdb$index_name = ix.rdb$index_name '
+            .'where ix.rdb$relation_name = %s '
+            .'group by ix.rdb$index_name, ix.rdb$unique_flag, rc.rdb$constraint_type '
+            .'order by ix.rdb$index_name',
+            $this->wrapMetadataAlias('name'),
+            $this->wrapMetadataAlias('columns'),
+            $this->wrapMetadataAlias('is_unique'),
+            $this->wrapMetadataAlias('is_primary'),
             $this->quoteString($this->normalizeObjectName($table)),
         );
     }
@@ -193,11 +221,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileAdd(Blueprint $blueprint, Fluent $command)
     {
-        $table = $this->wrapTable($blueprint);
-
-        $columns = $this->prefixArray('ADD', $this->getColumns($blueprint));
-
-        return 'ALTER TABLE '.$table.' '.implode(', ', $columns);
+        return 'ALTER TABLE '.$this->wrapTable($blueprint).' ADD '.$this->getColumn($blueprint, $command->column);
     }
 
     /**

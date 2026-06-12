@@ -101,6 +101,45 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_add_columns_to_a_table()
+    {
+        Schema::dropIfExists('foo_add_cols');
+
+        Schema::create('foo_add_cols', function (Blueprint $table) {
+            $table->integer('id');
+        });
+
+        Schema::table('foo_add_cols', function (Blueprint $table) {
+            $table->string('name')->nullable();
+            $table->integer('quantity')->default(0);
+        });
+
+        $this->assertTrue(Schema::hasColumns('foo_add_cols', ['id', 'name', 'quantity']));
+
+        Schema::drop('foo_add_cols');
+    }
+
+    #[Test]
+    public function it_can_create_indexes()
+    {
+        Schema::dropIfExists('foo_indexes');
+
+        Schema::create('foo_indexes', function (Blueprint $table) {
+            $table->integer('id');
+            $table->string('email');
+            $table->index('email', 'foo_indexes_email_idx');
+        });
+
+        $indexes = Schema::getIndexes('foo_indexes');
+
+        $this->assertTrue(collect($indexes)->contains(
+            fn ($index) => strtolower($index['name']) === 'foo_indexes_email_idx'
+        ));
+
+        Schema::drop('foo_indexes');
+    }
+
+    #[Test]
     public function it_throws_an_exception_for_creating_temporary_tables()
     {
         Schema::dropIfExists('foo');

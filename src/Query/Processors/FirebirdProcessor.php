@@ -44,6 +44,27 @@ class FirebirdProcessor extends Processor
     }
 
     /**
+     * Process the results of an indexes query.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array{name: string, columns: list<string>, type: string|null, unique: bool, primary: bool}>
+     */
+    public function processIndexes($results)
+    {
+        return array_map(function ($index) {
+            $index = (array) $index;
+
+            return [
+                'name' => strtolower($index['name']),
+                'columns' => array_map('strtolower', explode(',', $index['columns'])),
+                'type' => null,
+                'unique' => (bool) $index['is_unique'],
+                'primary' => (bool) $index['is_primary'],
+            ];
+        }, $results);
+    }
+
+    /**
      * Process an "insert get ID" query.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
