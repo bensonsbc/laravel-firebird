@@ -3,6 +3,7 @@
 namespace Benson\LaravelFirebird\Schema;
 
 use Illuminate\Database\Schema\Builder as BaseBuilder;
+use Illuminate\Support\Str;
 
 class Builder extends BaseBuilder
 {
@@ -23,7 +24,11 @@ class Builder extends BaseBuilder
             return;
         }
 
+        $generators = [];
+
         foreach ($tables as $table) {
+            $generators = array_merge($generators, $this->autoIncrementGeneratorsForTable($table));
+
             foreach ($this->getForeignKeys($table) as $foreignKey) {
                 $this->connection->statement(sprintf(
                     'ALTER TABLE %s DROP CONSTRAINT %s',
@@ -37,8 +42,8 @@ class Builder extends BaseBuilder
             $this->connection->statement('DROP TABLE '.$this->grammar->wrapTable($table));
         }
 
-        foreach ($tables as $table) {
-            $this->dropConventionalAutoIncrementGenerator($table);
+        foreach (array_unique($generators) as $generator) {
+            $this->dropAutoIncrementGenerator($generator);
         }
 
         $this->connection->disconnect();
@@ -89,15 +94,38 @@ class Builder extends BaseBuilder
     }
 
     /**
-     * Drop the generator convention created by Firebird schema auto-increments.
+     * Discover generators used by insert triggers on a table.
      *
      * @param  string  $table
+     * @return list<string>
+     */
+    protected function autoIncrementGeneratorsForTable($table)
+    {
+        $generators = $this->connection->select(
+            'select distinct trim(d.rdb$depended_on_name) as name '
+            .'from rdb$triggers t '
+            .'join rdb$dependencies d on d.rdb$dependent_name = t.rdb$trigger_name '
+            .'join rdb$generators g on g.rdb$generator_name = d.rdb$depended_on_name '
+            .'where trim(t.rdb$relation_name) = ? '
+            .'and (t.rdb$system_flag is null or t.rdb$system_flag = 0)',
+            [$this->normalizeObjectName($table)]
+        );
+
+        return array_values(array_filter(array_map(function ($generator) {
+            $generator = (array) $generator;
+
+            return $generator['name'] ?? $generator['NAME'] ?? null;
+        }, $generators)));
+    }
+
+    /**
+     * Drop an auto-increment generator discovered from trigger dependencies.
+     *
+     * @param  string  $generator
      * @return void
      */
-    protected function dropConventionalAutoIncrementGenerator($table)
+    protected function dropAutoIncrementGenerator($generator)
     {
-        $generator = $this->normalizeObjectName(substr($table.'_id_gen', 0, 31));
-
         $this->connection->statement(sprintf(
             'execute block as begin if (exists(select 1 from rdb$generators where trim(rdb$generator_name) = %s)) then execute statement %s; end',
             $this->quoteString($generator),
@@ -114,7 +142,7 @@ class Builder extends BaseBuilder
     protected function normalizeObjectName($name)
     {
         return $this->connection->getConfig('uppercase_identifiers', false) === true
-            ? strtoupper($name)
+            ? Str::upper($name)
             : $name;
     }
 

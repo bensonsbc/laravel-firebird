@@ -104,6 +104,7 @@ trait MigrateDatabase
             'foo_change_mods',
             'foo_column_types',
             'foo_drop_all_child',
+            'foo_drop_all_custom',
             'foo_drop_all_parent',
             'foo_drop_idx',
             'foo_drop_cols',
@@ -116,6 +117,7 @@ trait MigrateDatabase
             'foo_renamed_table',
             'foo_rename_col',
             'foo_rename_table',
+            'foo_custom_truncate',
             'foo_truncate',
             'foo_unique',
         ];
@@ -130,6 +132,8 @@ trait MigrateDatabase
         $generators = [
             'orders_id_gen',
             'users_id_gen',
+            'foo_custom_generator',
+            'foo_drop_all_custom_gen',
         ];
 
         foreach ($generators as $generator) {

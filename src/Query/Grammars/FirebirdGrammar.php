@@ -571,8 +571,7 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile a truncate table statement into SQL.
      *
-     * Firebird servers older than 2.5 do not support TRUNCATE TABLE. Use DELETE
-     * and reset the generator convention created by the schema grammar.
+     * Firebird servers older than 2.5 do not support TRUNCATE TABLE.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @return array
@@ -581,36 +580,7 @@ class FirebirdGrammar extends Grammar
     {
         return [
             'delete from '.$this->wrapTable($query->from) => [],
-            $this->compileAutoIncrementGeneratorReset($query->from) => [],
         ];
-    }
-
-    /**
-     * Compile a conditional reset for the conventional auto-increment generator.
-     *
-     * @param  string  $table
-     * @return string
-     */
-    protected function compileAutoIncrementGeneratorReset($table)
-    {
-        $generator = $this->normalizeObjectName(substr($table.'_id_gen', 0, 31));
-
-        return sprintf(
-            'execute block as begin if (exists(select 1 from rdb$generators where trim(rdb$generator_name) = %s)) then execute statement %s; end',
-            $this->quoteString($generator),
-            $this->quoteString('set generator '.$this->wrap($generator).' to 0')
-        );
-    }
-
-    /**
-     * Normalize a database object lookup for legacy uppercase schemas.
-     *
-     * @param  string  $name
-     * @return string
-     */
-    protected function normalizeObjectName($name)
-    {
-        return $this->shouldUppercaseIdentifiers() ? Str::upper($name) : $name;
     }
 
     /**

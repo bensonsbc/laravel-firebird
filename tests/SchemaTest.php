@@ -281,6 +281,72 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_truncate_tables_and_restart_custom_auto_increment_generators()
+    {
+        $table = DB::getQueryGrammar()->wrapTable('foo_custom_truncate');
+        $id = DB::getQueryGrammar()->wrap('id');
+        $name = DB::getQueryGrammar()->wrap('name');
+        $generator = DB::getQueryGrammar()->wrap('foo_custom_generator');
+        $trigger = DB::getQueryGrammar()->wrap('foo_custom_truncate_bi');
+
+        try {
+            DB::statement('drop table '.$table);
+        } catch (QueryException) {
+            //
+        }
+
+        try {
+            DB::statement('drop generator '.$generator);
+        } catch (QueryException) {
+            //
+        }
+
+        try {
+            DB::statement(sprintf(
+                'create table %s (%s integer not null primary key, %s varchar(255) not null)',
+                $table,
+                $id,
+                $name,
+            ));
+            DB::statement('create generator '.$generator);
+            DB::statement(sprintf(
+                'create trigger %s for %s active before insert position 0 as begin if (NEW.%s is null) then NEW.%s = gen_id(%s, 1); end',
+                $trigger,
+                $table,
+                $id,
+                $id,
+                $generator,
+            ));
+
+            DB::table('foo_custom_truncate')->insert([
+                ['name' => 'First custom row'],
+                ['name' => 'Second custom row'],
+            ]);
+
+            DB::table('foo_custom_truncate')->truncate();
+
+            $newId = DB::table('foo_custom_truncate')->insertGetId([
+                'name' => 'After custom truncate',
+            ], 'id');
+
+            $this->assertSame(1, DB::table('foo_custom_truncate')->count());
+            $this->assertSame(1, (int) $newId);
+        } finally {
+            try {
+                DB::statement('drop table '.$table);
+            } catch (QueryException) {
+                //
+            }
+
+            try {
+                DB::statement('drop generator '.$generator);
+            } catch (QueryException) {
+                //
+            }
+        }
+    }
+
+    #[Test]
     public function it_can_add_columns_to_a_table()
     {
         Schema::dropIfExists('foo_add_cols');
