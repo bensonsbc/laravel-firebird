@@ -1626,6 +1626,44 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_update_and_delete_with_join_aliases()
+    {
+        $matchingUser = User::factory()->create([
+            'email' => 'alias-join@example.com',
+        ]);
+        $otherUser = User::factory()->create([
+            'email' => 'other-alias-join@example.com',
+        ]);
+
+        Order::factory()->create([
+            'user_id' => $matchingUser->id,
+            'name' => 'Alias join target',
+            'quantity' => 1,
+        ]);
+        Order::factory()->create([
+            'user_id' => $otherUser->id,
+            'name' => 'Alias join untouched',
+            'quantity' => 1,
+        ]);
+
+        $updated = DB::table('orders as o')
+            ->join('users as u', 'o.user_id', '=', 'u.id')
+            ->where('u.email', 'alias-join@example.com')
+            ->update(['quantity' => 7]);
+
+        $deleted = DB::table('orders as o')
+            ->join('users as u', 'o.user_id', '=', 'u.id')
+            ->where('u.email', 'alias-join@example.com')
+            ->delete();
+
+        $this->assertSame(1, $updated);
+        $this->assertSame(1, $deleted);
+        $this->assertFalse(DB::table('orders')->where('name', 'Alias join target')->exists());
+        $this->assertTrue(DB::table('orders')->where('name', 'Alias join untouched')->exists());
+        $this->assertSame(1, DB::table('orders')->where('name', 'Alias join untouched')->value('quantity'));
+    }
+
+    #[Test]
     public function it_can_insert_returning_id()
     {
         $id = DB::table('users')
