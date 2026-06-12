@@ -477,6 +477,32 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a "where like" clause.
+     *
+     * Firebird's LIKE is case sensitive, so case insensitive comparisons
+     * are emulated by uppercasing both sides.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereLike(Builder $query, $where)
+    {
+        if ($where['caseSensitive']) {
+            $where['operator'] = $where['not'] ? 'not like' : 'like';
+
+            return $this->whereBasic($query, $where);
+        }
+
+        return sprintf(
+            'upper(%s) %s upper(%s)',
+            $this->wrap($where['column']),
+            $where['not'] ? 'not like' : 'like',
+            $this->parameter($where['value'])
+        );
+    }
+
+    /**
      * Compile a date based where clause.
      *
      * @param  string  $type

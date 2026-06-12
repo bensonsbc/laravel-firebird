@@ -282,6 +282,23 @@ class GrammarTest extends TestCase
         $this->assertStringNotContainsString('cast(? as bigint) as CLIENTEID', $sql);
     }
 
+    #[Test]
+    public function it_compiles_where_like_clauses_for_firebird()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $insensitive = $connection->table('cliente')->whereLike('nome', 'anna%')->toSql();
+        $sensitive = $connection->table('cliente')->whereLike('nome', 'Anna%', true)->toSql();
+        $notInsensitive = $connection->table('cliente')->whereNotLike('nome', 'anna%')->toSql();
+
+        $this->assertSame('select * from CLIENTE where upper(NOME) like upper(?)', $insensitive);
+        $this->assertSame('select * from CLIENTE where NOME like ?', $sensitive);
+        $this->assertSame('select * from CLIENTE where upper(NOME) not like upper(?)', $notInsensitive);
+    }
+
     protected function makeConnection(array $config = [])
     {
         return new FirebirdConnection(
