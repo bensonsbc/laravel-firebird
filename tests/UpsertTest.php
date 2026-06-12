@@ -72,6 +72,51 @@ class UpsertTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function it_inserts_rows_with_update_or_insert()
+    {
+        $updated = DB::table('UPS_USERS')->updateOrInsert([
+            'ID' => 10,
+        ], [
+            'EMAIL' => 'update-or-insert-new@example.com',
+            'NAME' => 'Update Insert New',
+            'CREATED_AT' => now()->toDateTimeString(),
+            'UPDATED_AT' => now()->toDateTimeString(),
+        ]);
+
+        $this->assertTrue($updated);
+        $this->assertDatabaseHas('UPS_USERS', [
+            'ID' => 10,
+            'EMAIL' => 'update-or-insert-new@example.com',
+            'NAME' => 'Update Insert New',
+        ]);
+    }
+
+    #[Test]
+    public function it_updates_rows_with_update_or_insert()
+    {
+        DB::table('UPS_USERS')->insert($this->userAttributes([
+            'ID' => 11,
+            'EMAIL' => 'before-update-or-insert@example.com',
+            'NAME' => 'Before Update Insert',
+        ]));
+
+        $updated = DB::table('UPS_USERS')->updateOrInsert([
+            'ID' => 11,
+        ], [
+            'EMAIL' => 'after-update-or-insert@example.com',
+            'NAME' => 'After Update Insert',
+            'UPDATED_AT' => now()->toDateTimeString(),
+        ]);
+
+        $this->assertTrue($updated);
+        $this->assertDatabaseHas('UPS_USERS', [
+            'ID' => 11,
+            'EMAIL' => 'after-update-or-insert@example.com',
+            'NAME' => 'After Update Insert',
+        ]);
+    }
+
     protected function recreateTable()
     {
         DB::select('recreate table UPS_USERS (ID integer not null primary key, NAME varchar(255) not null, EMAIL varchar(255) not null, CREATED_AT timestamp, UPDATED_AT timestamp)');
