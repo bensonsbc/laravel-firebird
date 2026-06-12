@@ -464,6 +464,26 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a dialect 1 compatible "where time" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereTimeSeconds(Builder $query, $where)
+    {
+        $column = $this->wrap($where['column']);
+        $condition = sprintf(
+            '((extract(hour from %s) * 3600) + (extract(minute from %s) * 60) + cast(extract(second from %s) as integer))',
+            $column,
+            $column,
+            $column
+        );
+
+        return $condition.' '.$where['operator'].' '.$this->parameter($where['value']);
+    }
+
+    /**
      * Compile the select clause for a stored procedure.
      *
      * @param  \Illuminate\Database\Query\Builder  $query

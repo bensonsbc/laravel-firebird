@@ -2,6 +2,7 @@
 
 namespace Benson\LaravelFirebird\Query;
 
+use DateTimeInterface;
 use Illuminate\Database\Query\Builder as BaseBuilder;
 use Illuminate\Support\Arr;
 
@@ -81,6 +82,54 @@ class Builder extends BaseBuilder
 
             return $affected;
         });
+    }
+
+    /**
+     * Add a "where time" statement to the query.
+     *
+     * Dialect 1 clients cannot reference Firebird's TIME datatype, so compare
+     * the timestamp's extracted second-of-day value instead.
+     *
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @param  \DateTimeInterface|string|null  $operator
+     * @param  \DateTimeInterface|string|null  $value
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereTime($column, $operator, $value = null, $boolean = 'and')
+    {
+        if ((string) $this->connection->getConfig('dialect') !== '1') {
+            return parent::whereTime($column, $operator, $value, $boolean);
+        }
+
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        if ($this->invalidOperator($operator)) {
+            [$value, $operator] = [$operator, '='];
+        }
+
+        $value = $this->flattenValue($value);
+
+        if ($value instanceof DateTimeInterface) {
+            $value = $value->format('H:i:s');
+        }
+
+        return $this->addDateBasedWhere('TimeSeconds', $column, $operator, $this->timeToSeconds($value), $boolean);
+    }
+
+    /**
+     * Convert an HH:MM:SS value to seconds since midnight.
+     *
+     * @param  mixed  $value
+     * @return int
+     */
+    protected function timeToSeconds($value)
+    {
+        [$hour, $minute, $second] = array_pad(explode(':', (string) $value), 3, 0);
+
+        return ((int) $hour * 3600) + ((int) $minute * 60) + (int) floor((float) $second);
     }
 
     /**
