@@ -59,12 +59,27 @@ class FirebirdProcessor extends Processor
                 'type_name' => $type,
                 'collation' => null,
                 'nullable' => (int) $column['null_flag'] !== 1,
-                'default' => $column['default_source'] ?? null,
+                'default' => $this->processColumnDefault($column['default_source'] ?? null),
                 'auto_increment' => false,
                 'comment' => $column['comment'] ?? null,
                 'generation' => null,
             ];
         }, $results);
+    }
+
+    /**
+     * Strip the DEFAULT keyword that Firebird stores in the default source.
+     *
+     * @param  string|null  $default
+     * @return string|null
+     */
+    protected function processColumnDefault($default)
+    {
+        if ($default === null) {
+            return null;
+        }
+
+        return preg_replace('/^\s*default\s+/i', '', $default);
     }
 
     /**

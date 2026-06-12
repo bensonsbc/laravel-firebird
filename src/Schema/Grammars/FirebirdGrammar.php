@@ -2,12 +2,15 @@
 
 namespace Benson\LaravelFirebird\Schema\Grammars;
 
+use Benson\LaravelFirebird\Concerns\NormalizesObjectNames;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Grammars\Grammar;
 use Illuminate\Support\Fluent;
 
 class FirebirdGrammar extends Grammar
 {
+    use NormalizesObjectNames;
+
     /**
      * The possible column modifiers.
      *
@@ -26,7 +29,7 @@ class FirebirdGrammar extends Grammar
      * Wrap a single string in keyword identifiers.
      *
      * @param  string  $value
-     * @return list<string>
+     * @return string
      */
     protected function wrapValue($value)
     {
@@ -256,19 +259,6 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
-     * Normalize a metadata object lookup for legacy uppercase schemas.
-     *
-     * @param  string  $name
-     * @return string
-     */
-    protected function normalizeObjectName($name)
-    {
-        return $this->connection->getConfig('uppercase_identifiers', false) === true
-            ? strtoupper($name)
-            : $name;
-    }
-
-    /**
      * Wrap a metadata alias when the configured dialect supports it.
      *
      * @param  string  $alias
@@ -329,7 +319,7 @@ class FirebirdGrammar extends Grammar
      */
     protected function autoIncrementGeneratorName(Blueprint $blueprint, Fluent $column)
     {
-        return substr($blueprint->getTable().'_'.$column->name.'_gen', 0, 31);
+        return $this->autoIncrementObjectName($blueprint->getTable().'_'.$column->name.'_gen');
     }
 
     /**
@@ -341,7 +331,25 @@ class FirebirdGrammar extends Grammar
      */
     protected function autoIncrementTriggerName(Blueprint $blueprint, Fluent $column)
     {
-        return substr($blueprint->getTable().'_'.$column->name.'_bi', 0, 31);
+        return $this->autoIncrementObjectName($blueprint->getTable().'_'.$column->name.'_bi');
+    }
+
+    /**
+     * Constrain an auto-increment object name to Firebird's 31 character limit.
+     *
+     * Long names keep a hash suffix so two truncated names cannot collide and
+     * silently share a generator or trigger.
+     *
+     * @param  string  $name
+     * @return string
+     */
+    protected function autoIncrementObjectName($name)
+    {
+        if (strlen($name) <= 31) {
+            return $name;
+        }
+
+        return substr($name, 0, 22).'_'.substr(md5($name), 0, 8);
     }
 
     /**
