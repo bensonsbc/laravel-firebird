@@ -103,10 +103,28 @@ class FirebirdGrammar extends Grammar
     public function compileColumns($schema, $table)
     {
         return sprintf(
-            'select trim(trailing from rdb$field_name) as %s '
-            .'from rdb$relation_fields where rdb$relation_name = %s '
-            .'order by rdb$field_position',
+            'select trim(trailing from rf.rdb$field_name) as %s, '
+            .'f.rdb$field_type as %s, '
+            .'f.rdb$field_sub_type as %s, '
+            .'f.rdb$field_precision as %s, '
+            .'f.rdb$field_scale as %s, '
+            .'coalesce(f.rdb$character_length, f.rdb$field_length) as %s, '
+            .'rf.rdb$null_flag as %s, '
+            .'coalesce(rf.rdb$default_source, f.rdb$default_source) as %s, '
+            .'rf.rdb$description as %s '
+            .'from rdb$relation_fields rf '
+            .'join rdb$fields f on f.rdb$field_name = rf.rdb$field_source '
+            .'where rf.rdb$relation_name = %s '
+            .'order by rf.rdb$field_position',
             $this->wrapMetadataAlias('name'),
+            $this->wrapMetadataAlias('field_type'),
+            $this->wrapMetadataAlias('field_sub_type'),
+            $this->wrapMetadataAlias('field_precision'),
+            $this->wrapMetadataAlias('field_scale'),
+            $this->wrapMetadataAlias('field_length'),
+            $this->wrapMetadataAlias('null_flag'),
+            $this->wrapMetadataAlias('default_source'),
+            $this->wrapMetadataAlias('comment'),
             $this->quoteString($this->normalizeObjectName($table)),
         );
     }

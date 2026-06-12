@@ -117,6 +117,39 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_gets_column_types()
+    {
+        Schema::dropIfExists('foo_column_types');
+
+        try {
+            Schema::create('foo_column_types', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('name', 80)->nullable();
+                $table->decimal('amount', 18, 2);
+                $table->timestamp('seen_at');
+                $table->text('notes');
+            });
+
+            $this->assertSame('integer', Schema::getColumnType('foo_column_types', 'id'));
+            $this->assertSame('varchar', Schema::getColumnType('foo_column_types', 'name'));
+            $this->assertSame(
+                (string) env('DB_DIALECT') === '1' ? 'double' : 'decimal',
+                Schema::getColumnType('foo_column_types', 'amount')
+            );
+            $this->assertSame('timestamp', Schema::getColumnType('foo_column_types', 'seen_at'));
+            $this->assertSame('blob', Schema::getColumnType('foo_column_types', 'notes'));
+
+            $this->assertSame('varchar(80)', Schema::getColumnType('foo_column_types', 'name', true));
+            $this->assertSame(
+                (string) env('DB_DIALECT') === '1' ? 'double' : 'decimal(18, 2)',
+                Schema::getColumnType('foo_column_types', 'amount', true)
+            );
+        } finally {
+            Schema::dropIfExists('foo_column_types');
+        }
+    }
+
+    #[Test]
     public function it_can_create_a_table()
     {
         Schema::dropIfExists('foo');

@@ -51,13 +51,78 @@ class FirebirdProcessor extends Processor
     {
         return array_map(function ($column) {
             $column = (array) $column;
+            $type = $this->processColumnType($column);
 
-            if (isset($column['name'])) {
-                $column['name'] = strtolower($column['name']);
-            }
-
-            return $column;
+            return [
+                'name' => strtolower($column['name']),
+                'type' => $this->processColumnFullType($column, $type),
+                'type_name' => $type,
+                'collation' => null,
+                'nullable' => (int) $column['null_flag'] !== 1,
+                'default' => $column['default_source'] ?? null,
+                'auto_increment' => false,
+                'comment' => $column['comment'] ?? null,
+                'generation' => null,
+            ];
         }, $results);
+    }
+
+    /**
+     * Process a Firebird column type name.
+     *
+     * @param  array<string, mixed>  $column
+     * @return string
+     */
+    protected function processColumnType(array $column)
+    {
+        $fieldType = (int) $column['field_type'];
+        $fieldSubType = (int) ($column['field_sub_type'] ?? 0);
+        $fieldScale = (int) ($column['field_scale'] ?? 0);
+
+        if (in_array($fieldType, [7, 8, 16]) && $fieldScale < 0) {
+            return $fieldSubType === 2 ? 'decimal' : 'numeric';
+        }
+
+        return match ($fieldType) {
+            7 => 'smallint',
+            8 => 'integer',
+            10 => 'float',
+            12 => 'date',
+            13 => 'time',
+            14 => 'char',
+            16 => 'bigint',
+            23 => 'boolean',
+            27 => 'double',
+            35 => 'timestamp',
+            37 => 'varchar',
+            261 => 'blob',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * Process a Firebird column full type definition.
+     *
+     * @param  array<string, mixed>  $column
+     * @param  string  $type
+     * @return string
+     */
+    protected function processColumnFullType(array $column, string $type)
+    {
+        if (in_array($type, ['char', 'varchar'])) {
+            return $type.'('.(int) $column['field_length'].')';
+        }
+
+        if (in_array($type, ['decimal', 'numeric'])) {
+            return sprintf(
+                '%s(%d, %d)',
+                $type,
+                (int) ($column['field_precision'] ?: 18),
+                abs((int) $column['field_scale']),
+            );
+        }
+
+        return $type;
     }
 
     /**
