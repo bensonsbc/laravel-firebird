@@ -30,4 +30,31 @@ trait DiscoversAutoIncrementGenerators
             return $generator['name'] ?? $generator['NAME'] ?? null;
         }, $generators)));
     }
+
+    /**
+     * Discover identity columns on a table (Firebird 3+).
+     *
+     * @param  string  $table
+     * @return list<string>
+     */
+    protected function identityColumnsForTable($table)
+    {
+        if (! $this->connection->isServerVersionAtLeast('3.0')) {
+            return [];
+        }
+
+        $columns = $this->connection->select(
+            'select trim(rdb$field_name) as name '
+            .'from rdb$relation_fields '
+            .'where trim(rdb$relation_name) = ? '
+            .'and rdb$identity_type is not null',
+            [$this->normalizeObjectName($table)]
+        );
+
+        return array_values(array_filter(array_map(function ($column) {
+            $column = (array) $column;
+
+            return $column['name'] ?? $column['NAME'] ?? null;
+        }, $columns)));
+    }
 }

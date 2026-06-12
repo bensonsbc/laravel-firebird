@@ -168,6 +168,7 @@ class Builder extends BaseBuilder
         $this->applyBeforeQueryCallbacks();
 
         $generators = $this->autoIncrementGeneratorsForTable($this->from);
+        $identityColumns = $this->identityColumnsForTable($this->from);
 
         foreach ($this->grammar->compileTruncate($this) as $sql => $bindings) {
             $this->connection->statement($sql, $bindings);
@@ -177,6 +178,14 @@ class Builder extends BaseBuilder
             $this->connection->statement(
                 'set generator '.$this->grammar->wrap($generator).' to 0'
             );
+        }
+
+        foreach ($identityColumns as $column) {
+            $this->connection->statement(sprintf(
+                'alter table %s alter %s restart',
+                $this->grammar->wrapTable($this->from),
+                $this->grammar->wrap($column)
+            ));
         }
     }
 
