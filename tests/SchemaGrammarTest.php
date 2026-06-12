@@ -104,6 +104,32 @@ class SchemaGrammarTest extends TestCase
         $this->assertStringContainsString('ADD CONSTRAINT "'.$longIndex.'"', $statements[1]);
     }
 
+    #[Test]
+    public function it_uses_time_zone_types_on_firebird_four_and_newer()
+    {
+        $modern = $this->makeConnection(['server_version' => '4.0.4']);
+
+        $statements = $this->createTableSql($modern, 'foo_events', function (Blueprint $table) {
+            $table->timestampTz('happened_at');
+            $table->timeTz('happened_time');
+            $table->dateTimeTz('logged_at');
+        });
+
+        $this->assertStringContainsString('"happened_at" TIMESTAMP WITH TIME ZONE', $statements[0]);
+        $this->assertStringContainsString('"happened_time" TIME WITH TIME ZONE', $statements[0]);
+        $this->assertStringContainsString('"logged_at" TIMESTAMP WITH TIME ZONE', $statements[0]);
+
+        $legacy = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $statements = $this->createTableSql($legacy, 'foo_events', function (Blueprint $table) {
+            $table->timestampTz('happened_at');
+            $table->timeTz('happened_time');
+        });
+
+        $this->assertStringContainsString('"happened_at" TIMESTAMP', $statements[0]);
+        $this->assertStringNotContainsString('WITH TIME ZONE', $statements[0]);
+    }
+
     protected function createTableSql(FirebirdConnection $connection, string $table, callable $callback): array
     {
         $blueprint = new Blueprint($connection, $table, function (Blueprint $table) use ($callback) {
