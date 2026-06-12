@@ -949,7 +949,7 @@ class FirebirdGrammar extends Grammar
      */
     protected function typeJson(Fluent $column)
     {
-        return 'VARCHAR(8191)';
+        return 'BLOB SUB_TYPE TEXT';
     }
 
     /**
@@ -960,7 +960,7 @@ class FirebirdGrammar extends Grammar
      */
     protected function typeJsonb(Fluent $column)
     {
-        return 'VARCHAR(8191) CHARACTER SET OCTETS';
+        return 'BLOB SUB_TYPE TEXT';
     }
 
     /**
