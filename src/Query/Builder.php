@@ -120,6 +120,52 @@ class Builder extends BaseBuilder
     }
 
     /**
+     * Add a "where date" statement to the query.
+     *
+     * Dialect 1 clients are more reliable when dates are compared through
+     * extracted parts instead of the DATE datatype.
+     *
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @param  \DateTimeInterface|string|null  $operator
+     * @param  \DateTimeInterface|string|null  $value
+     * @param  string  $boolean
+     * @return $this
+     */
+    public function whereDate($column, $operator, $value = null, $boolean = 'and')
+    {
+        if ((string) $this->connection->getConfig('dialect') !== '1') {
+            return parent::whereDate($column, $operator, $value, $boolean);
+        }
+
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        if ($this->invalidOperator($operator)) {
+            [$value, $operator] = [$operator, '='];
+        }
+
+        $value = $this->flattenValue($value);
+
+        if ($value instanceof DateTimeInterface) {
+            $value = $value->format('Y-m-d');
+        }
+
+        return $this->addDateBasedWhere('DateNumber', $column, $operator, $this->dateToNumber($value), $boolean);
+    }
+
+    /**
+     * Convert a YYYY-MM-DD value to an integer date key.
+     *
+     * @param  mixed  $value
+     * @return int
+     */
+    protected function dateToNumber($value)
+    {
+        return (int) preg_replace('/\D/', '', (string) $value);
+    }
+
+    /**
      * Convert an HH:MM:SS value to seconds since midnight.
      *
      * @param  mixed  $value

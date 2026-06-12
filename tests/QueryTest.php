@@ -1029,7 +1029,7 @@ class QueryTest extends TestCase
             ->create();
 
         $results = DB::table('orders')
-            ->select(DB::raw('count(*) as "price_count", "price"'))
+            ->select(DB::raw('count(*) as '.$this->wrap('price_count').', '.$this->wrap('price')))
             ->groupBy('price')
             ->get();
 
@@ -1052,7 +1052,7 @@ class QueryTest extends TestCase
             ->create();
 
         $results = DB::table('orders')
-            ->selectRaw('"price", cast("price" * 1.1 as double precision) as "price_with_tax"')
+            ->selectRaw($this->wrap('price').', cast('.$this->wrap('price').' * 1.1 as double precision) as '.$this->wrap('price_with_tax'))
             ->get();
 
         foreach ($results as $result) {
@@ -1073,7 +1073,7 @@ class QueryTest extends TestCase
             ->create();
 
         $result = DB::table('orders')
-            ->selectRaw('SUM("price") as "price"')
+            ->selectRaw('SUM('.$this->wrap('price').') as '.$this->wrap('price'))
             ->get()
             ->first();
 
@@ -1087,7 +1087,7 @@ class QueryTest extends TestCase
         User::factory()->create(['city' => null]);
 
         $results = DB::table('users')
-            ->whereRaw('"city" is not null')
+            ->whereRaw($this->wrap('city').' is not null')
             ->get();
 
         $this->assertCount(3, $results);
@@ -1106,7 +1106,7 @@ class QueryTest extends TestCase
             ->create();
 
         $results = DB::table('orders')
-            ->orderByRaw('"price" * "quantity" desc')
+            ->orderByRaw($this->wrap('price').' * '.$this->wrap('quantity').' desc')
             ->get();
 
         $max = $results->first()->price * $results->first()->quantity;
@@ -1267,7 +1267,7 @@ class QueryTest extends TestCase
         Order::factory()->create();
 
         $latestOrder = DB::table('orders')
-            ->select('user_id', DB::raw('MAX("created_at") as "last_order_created_at"'))
+            ->select('user_id', DB::raw('MAX('.$this->wrap('created_at').') as '.$this->wrap('last_order_created_at')))
             ->groupBy('user_id');
 
         $user = DB::table('users')
@@ -1452,13 +1452,13 @@ class QueryTest extends TestCase
         User::factory()->count(2)->create(['country' => 'England']);
 
         $results = DB::table('users')
-            ->selectRaw('count("id") as "count", "country"')
+            ->selectRaw('count('.$this->wrap('id').') as '.$this->wrap('record_count').', '.$this->wrap('country'))
             ->groupBy('country')
             ->having('country', '!=', 'England')
             ->get();
 
         $this->assertCount(2, $results);
-        $results = $results->mapWithKeys(fn ($result) => [$result->country => $result->count]);
+        $results = $results->mapWithKeys(fn ($result) => [$result->country => $result->record_count]);
         $this->assertEquals(5, $results['Australia']);
         $this->assertEquals(3, $results['New Zealand']);
     }
@@ -1471,13 +1471,13 @@ class QueryTest extends TestCase
         User::factory()->count(2)->create(['country' => 'England']);
 
         $results = DB::table('users')
-            ->selectRaw('count("id") as "count", "country"')
+            ->selectRaw('count('.$this->wrap('id').') as '.$this->wrap('record_count').', '.$this->wrap('country'))
             ->groupBy('country')
-            ->havingRaw('count("id") > 2')
+            ->havingRaw('count('.$this->wrap('id').') > 2')
             ->get();
 
         $this->assertCount(2, $results);
-        $results = $results->mapWithKeys(fn ($result) => [$result->country => $result->count]);
+        $results = $results->mapWithKeys(fn ($result) => [$result->country => $result->record_count]);
         $this->assertEquals(5, $results['Australia']);
         $this->assertEquals(3, $results['New Zealand']);
     }
@@ -1579,7 +1579,7 @@ class QueryTest extends TestCase
         $secondNumber = random_int(1, 10);
 
         $result = DB::selectOne(
-            'select "result" from "math_multiply" (?, ?)',
+            'select '.$this->wrap('result').' from '.$this->wrap('math_multiply').' (?, ?)',
             [$firstNumber, $secondNumber]
         )->result;
         $this->assertEquals($firstNumber * $secondNumber, $result);
@@ -1594,5 +1594,10 @@ class QueryTest extends TestCase
             ->first()
             ->result;
         $this->assertEquals($result, $aliasResult);
+    }
+
+    protected function wrap(string $value): string
+    {
+        return DB::getQueryGrammar()->wrap($value);
     }
 }

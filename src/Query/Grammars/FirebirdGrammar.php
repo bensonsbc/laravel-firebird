@@ -484,6 +484,26 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a dialect 1 compatible "where date" clause.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $where
+     * @return string
+     */
+    protected function whereDateNumber(Builder $query, $where)
+    {
+        $column = $this->wrap($where['column']);
+        $condition = sprintf(
+            '((extract(year from %s) * 10000) + (extract(month from %s) * 100) + extract(day from %s))',
+            $column,
+            $column,
+            $column
+        );
+
+        return $condition.' '.$where['operator'].' '.$this->parameter($where['value']);
+    }
+
+    /**
      * Compile the select clause for a stored procedure.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
@@ -505,6 +525,12 @@ class FirebirdGrammar extends Grammar
      */
     protected function compileAggregate(Builder $query, $aggregate)
     {
+        if ((string) $this->connection->getConfig('dialect') === '1' && $aggregate['function'] === 'avg') {
+            $column = $this->columnize($aggregate['columns']);
+
+            return 'select floor(avg('.$column.' * 1.0000)) as aggregate';
+        }
+
         // Wrap `aggregate` in double quotes to ensure the resultset returns the
         // column name as a lowercase string. This resolves compatibility with
         // the framework's paginator.
