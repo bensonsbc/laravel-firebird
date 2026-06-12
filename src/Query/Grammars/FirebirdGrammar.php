@@ -9,6 +9,7 @@ use Illuminate\Database\Query\JoinLateralClause;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class FirebirdGrammar extends Grammar
 {
@@ -222,6 +223,23 @@ class FirebirdGrammar extends Grammar
     protected function isReservedIdentifier($value)
     {
         return in_array(Str::upper($value), $this->reservedIdentifiers, true);
+    }
+
+    /**
+     * Compile a group limit clause.
+     *
+     * Group limits rely on window functions, which require Firebird 3.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function compileGroupLimit(Builder $query)
+    {
+        if (! $this->connection->isServerVersionAtLeast('3.0')) {
+            throw new RuntimeException('This database engine version does not support group limits on eager loaded relationships.');
+        }
+
+        return parent::compileGroupLimit($query);
     }
 
     /**

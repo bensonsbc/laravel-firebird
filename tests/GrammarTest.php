@@ -299,6 +299,34 @@ class GrammarTest extends TestCase
         $this->assertSame('select * from CLIENTE where upper(NOME) not like upper(?)', $notInsensitive);
     }
 
+    #[Test]
+    public function it_compiles_group_limits_with_window_functions_on_firebird_three_and_newer()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+            'server_version' => '3.0.10',
+        ]);
+
+        $sql = $connection->table('pedido')->groupLimit(3, 'clienteid')->toSql();
+
+        $this->assertSame(
+            'select * from (select *, row_number() over (partition by CLIENTEID) as LARAVEL_ROW from PEDIDO) as LARAVEL_TABLE where LARAVEL_ROW <= 3 order by LARAVEL_ROW',
+            $sql
+        );
+    }
+
+    #[Test]
+    public function it_rejects_group_limits_on_servers_without_window_functions()
+    {
+        $connection = $this->makeConnection(['server_version' => '2.5.9']);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('group limits');
+
+        $connection->table('pedido')->groupLimit(3, 'clienteid')->toSql();
+    }
+
     protected function makeConnection(array $config = [])
     {
         return new FirebirdConnection(
