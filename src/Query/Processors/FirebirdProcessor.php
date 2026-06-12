@@ -60,7 +60,7 @@ class FirebirdProcessor extends Processor
                 'collation' => null,
                 'nullable' => (int) $column['null_flag'] !== 1,
                 'default' => $this->processColumnDefault($column['default_source'] ?? null),
-                'auto_increment' => false,
+                'auto_increment' => isset($column['identity_type']),
                 'comment' => $column['comment'] ?? null,
                 'generation' => null,
             ];

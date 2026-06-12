@@ -112,6 +112,12 @@ class FirebirdGrammar extends Grammar
      */
     public function compileColumns($schema, $table)
     {
+        // rdb$identity_type only exists from Firebird 3, so older servers
+        // select a null placeholder instead.
+        $identityType = $this->connection->isServerVersionAtLeast('3.0')
+            ? 'rf.rdb$identity_type'
+            : 'cast(null as smallint)';
+
         return sprintf(
             'select trim(trailing from rf.rdb$field_name) as %s, '
             .'f.rdb$field_type as %s, '
@@ -121,6 +127,7 @@ class FirebirdGrammar extends Grammar
             .'coalesce(f.rdb$character_length, f.rdb$field_length) as %s, '
             .'rf.rdb$null_flag as %s, '
             .'coalesce(rf.rdb$default_source, f.rdb$default_source) as %s, '
+            .$identityType.' as %s, '
             .'rf.rdb$description as %s '
             .'from rdb$relation_fields rf '
             .'join rdb$fields f on f.rdb$field_name = rf.rdb$field_source '
@@ -134,6 +141,7 @@ class FirebirdGrammar extends Grammar
             $this->wrapMetadataAlias('field_length'),
             $this->wrapMetadataAlias('null_flag'),
             $this->wrapMetadataAlias('default_source'),
+            $this->wrapMetadataAlias('identity_type'),
             $this->wrapMetadataAlias('comment'),
             $this->quoteString($this->normalizeObjectName($table)),
         );
