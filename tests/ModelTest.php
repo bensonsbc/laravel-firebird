@@ -3,6 +3,7 @@
 namespace Benson\LaravelFirebird\Tests;
 
 use Benson\LaravelFirebird\Tests\Support\MigrateDatabase;
+use Benson\LaravelFirebird\Tests\Support\Models\Order;
 use Benson\LaravelFirebird\Tests\Support\Models\User;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -38,5 +39,29 @@ class ModelTest extends TestCase
         foreach ($fields as $key => $value) {
             $this->assertEquals($value, $foundUser->{$key});
         }
+    }
+
+    #[Test]
+    public function it_can_load_basic_relationships()
+    {
+        $user = User::factory()->create([
+            'name' => 'Relationship User',
+        ]);
+
+        Order::factory()->count(2)->create([
+            'user_id' => $user->id,
+            'name' => 'Related Order',
+        ]);
+
+        $loadedUser = User::with('orders')->find($user->id);
+
+        $this->assertCount(2, $loadedUser->orders);
+        $this->assertTrue($loadedUser->orders->every(
+            fn (Order $order) => $order->user_id === $user->id
+        ));
+
+        $order = Order::with('user')->where('user_id', $user->id)->first();
+
+        $this->assertTrue($user->is($order->user));
     }
 }
