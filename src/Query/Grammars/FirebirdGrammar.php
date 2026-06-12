@@ -582,8 +582,9 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile a "where like" clause.
      *
-     * Firebird's LIKE is case sensitive, so case insensitive comparisons
-     * are emulated by uppercasing both sides.
+     * Firebird delegates case/accent sensitivity to the column or expression
+     * collation. Do not emulate Laravel's case-insensitive flag with UPPER(),
+     * because that changes index usage and ignores user-selected collations.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @param  array  $where
@@ -591,18 +592,9 @@ class FirebirdGrammar extends Grammar
      */
     protected function whereLike(Builder $query, $where)
     {
-        if ($where['caseSensitive']) {
-            $where['operator'] = $where['not'] ? 'not like' : 'like';
+        $where['operator'] = $where['not'] ? 'not like' : 'like';
 
-            return $this->whereBasic($query, $where);
-        }
-
-        return sprintf(
-            'upper(%s) %s upper(%s)',
-            $this->wrap($where['column']),
-            $where['not'] ? 'not like' : 'like',
-            $this->parameter($where['value'])
-        );
+        return $this->whereBasic($query, $where);
     }
 
     /**

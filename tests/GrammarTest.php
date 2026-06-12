@@ -290,13 +290,13 @@ class GrammarTest extends TestCase
             'uppercase_identifiers' => true,
         ]);
 
-        $insensitive = $connection->table('cliente')->whereLike('nome', 'anna%')->toSql();
+        $default = $connection->table('cliente')->whereLike('nome', 'anna%')->toSql();
         $sensitive = $connection->table('cliente')->whereLike('nome', 'Anna%', true)->toSql();
-        $notInsensitive = $connection->table('cliente')->whereNotLike('nome', 'anna%')->toSql();
+        $notLike = $connection->table('cliente')->whereNotLike('nome', 'anna%')->toSql();
 
-        $this->assertSame('select * from CLIENTE where upper(NOME) like upper(?)', $insensitive);
+        $this->assertSame('select * from CLIENTE where NOME like ?', $default);
         $this->assertSame('select * from CLIENTE where NOME like ?', $sensitive);
-        $this->assertSame('select * from CLIENTE where upper(NOME) not like upper(?)', $notInsensitive);
+        $this->assertSame('select * from CLIENTE where NOME not like ?', $notLike);
     }
 
     #[Test]

@@ -1009,10 +1009,10 @@ class QueryTest extends TestCase
         User::factory()->create(['name' => 'Anna Maria']);
         User::factory()->create(['name' => 'Bruno']);
 
-        $this->assertSame(1, DB::table('users')->whereLike('name', 'anna%')->count());
+        $this->assertSame(0, DB::table('users')->whereLike('name', 'anna%')->count());
         $this->assertSame(0, DB::table('users')->whereLike('name', 'anna%', true)->count());
         $this->assertSame(1, DB::table('users')->whereLike('name', 'Anna%', true)->count());
-        $this->assertSame(1, DB::table('users')->whereNotLike('name', 'anna%')->count());
+        $this->assertSame(2, DB::table('users')->whereNotLike('name', 'anna%')->count());
     }
 
     #[Test]
