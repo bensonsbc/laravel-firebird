@@ -119,6 +119,31 @@ class FirebirdConnection extends DatabaseConnection
     }
 
     /**
+     * Determine if the given exception was caused by a lost connection.
+     *
+     * Adds the Firebird specific network failure messages on top of the
+     * messages Laravel already recognizes.
+     *
+     * @param  \Throwable  $e
+     * @return bool
+     */
+    protected function causedByLostConnection(Throwable $e)
+    {
+        if (parent::causedByLostConnection($e)) {
+            return true;
+        }
+
+        return Str::contains($e->getMessage(), [
+            'connection shutdown',
+            'connection lost to database',
+            'connection rejected by remote interface',
+            'Unable to complete network request to host',
+            'Error reading data from the connection',
+            'Error writing data to the connection',
+        ]);
+    }
+
+    /**
      * Determine if the given database exception was caused by a unique constraint violation.
      *
      * @param  \Exception  $exception

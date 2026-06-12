@@ -67,6 +67,26 @@ class ConnectionTest extends TestCase
         $this->assertFalse($connection->supportsIdentityColumns());
     }
 
+    #[Test]
+    public function it_detects_firebird_lost_connection_messages()
+    {
+        $connection = new class($this->makeOfflineConnection()) {
+            public function __construct(private FirebirdConnection $connection) {}
+
+            public function check(string $message): bool
+            {
+                $method = new \ReflectionMethod($this->connection, 'causedByLostConnection');
+
+                return $method->invoke($this->connection, new RuntimeException($message));
+            }
+        };
+
+        $this->assertTrue($connection->check('SQLSTATE[HY000]: Unable to complete network request to host "db".'));
+        $this->assertTrue($connection->check('SQLSTATE[HY000]: connection shutdown'));
+        $this->assertTrue($connection->check('Error reading data from the connection.'));
+        $this->assertFalse($connection->check('violation of PRIMARY or UNIQUE KEY constraint "PK" on table "T"'));
+    }
+
     protected function makeOfflineConnection(array $config = [])
     {
         return new FirebirdConnection(
