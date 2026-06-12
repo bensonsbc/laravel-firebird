@@ -57,6 +57,21 @@ class FirebirdGrammar extends Grammar
     ];
 
     /**
+     * Compile a select query into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    public function compileSelect(Builder $query)
+    {
+        if ($query->unions && ! empty($query->unionOrders)) {
+            return $this->compileOrderedUnionSelect($query);
+        }
+
+        return parent::compileSelect($query);
+    }
+
+    /**
      * Wrap a single string in keyword identifiers.
      *
      * @param  string  $value
@@ -376,6 +391,37 @@ class FirebirdGrammar extends Grammar
         }
 
         return 'rows '.($offset + 1).' to 2147483647';
+    }
+
+    /**
+     * Compile a union query whose ordering must be applied from an outer query.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function compileOrderedUnionSelect(Builder $query)
+    {
+        $unionQuery = clone $query;
+        $unionQuery->unionOrders = null;
+        $unionQuery->unionLimit = null;
+        $unionQuery->unionOffset = null;
+
+        $sql = 'select * from ('.parent::compileSelect($unionQuery).') FB_UNION';
+        $sql .= ' '.$this->compileOrders($query, $query->unionOrders);
+
+        if ($this->usesFirstSkipPagination()) {
+            return trim($sql.' '.$this->compileUnionRows($query));
+        }
+
+        if (isset($query->unionOffset)) {
+            $sql .= ' '.$this->compileOffset($query, $query->unionOffset);
+        }
+
+        if (isset($query->unionLimit)) {
+            $sql .= ' '.$this->compileLimit($query, $query->unionLimit);
+        }
+
+        return trim($sql);
     }
 
     /**

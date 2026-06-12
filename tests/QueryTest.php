@@ -1331,7 +1331,27 @@ class QueryTest extends TestCase
     #[Test]
     public function it_can_union_queries_with_order_by()
     {
-        $this->markTestSkipped('The necessary grammar for unionOrders has not been implemented.');
+        Order::factory()
+            ->count(5)
+            ->state(new Sequence(
+                ['price' => 110],
+                ['price' => 100],
+                ['price' => 100],
+                ['price' => 80],
+                ['price' => 16],
+            ))
+            ->create();
+
+        $unionBuilder = DB::table('orders')
+            ->where('price', 80);
+
+        $orders = DB::table('orders')
+            ->whereIn('price', [16, 110])
+            ->union($unionBuilder)
+            ->orderBy('price')
+            ->get();
+
+        $this->assertEquals([16, 80, 110], $orders->pluck('price')->all());
     }
 
     #[Test]
