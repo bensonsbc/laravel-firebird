@@ -179,6 +179,69 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_can_change_column_types()
+    {
+        Schema::dropIfExists('foo_change_col');
+
+        try {
+            Schema::create('foo_change_col', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('name', 10);
+            });
+
+            Schema::table('foo_change_col', function (Blueprint $table) {
+                $table->string('name', 50)->change();
+            });
+
+            DB::table('foo_change_col')->insert([
+                'id' => 1,
+                'name' => 'A longer changed value',
+            ]);
+
+            $this->assertDatabaseHas('foo_change_col', [
+                'id' => 1,
+                'name' => 'A longer changed value',
+            ]);
+        } finally {
+            Schema::dropIfExists('foo_change_col');
+        }
+    }
+
+    #[Test]
+    public function it_can_change_column_nullable_and_default_modifiers()
+    {
+        Schema::dropIfExists('foo_change_mods');
+
+        try {
+            Schema::create('foo_change_mods', function (Blueprint $table) {
+                $table->integer('id');
+                $table->string('name');
+                $table->integer('quantity')->default(1);
+            });
+
+            Schema::table('foo_change_mods', function (Blueprint $table) {
+                $table->string('name')->nullable()->change();
+                $table->integer('quantity')->default(5)->change();
+            });
+
+            DB::statement(sprintf(
+                'insert into %s (%s, %s) values (1, null)',
+                DB::getQueryGrammar()->wrapTable('foo_change_mods'),
+                DB::getQueryGrammar()->wrap('id'),
+                DB::getQueryGrammar()->wrap('name'),
+            ));
+
+            $this->assertDatabaseHas('foo_change_mods', [
+                'id' => 1,
+                'name' => null,
+                'quantity' => 5,
+            ]);
+        } finally {
+            Schema::dropIfExists('foo_change_mods');
+        }
+    }
+
+    #[Test]
     public function it_throws_an_exception_for_renaming_tables()
     {
         Schema::dropIfExists('foo_rename_table');

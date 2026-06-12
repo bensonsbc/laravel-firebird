@@ -99,6 +99,8 @@ trait MigrateDatabase
             'contacts',
             'foo',
             'foo_add_cols',
+            'foo_change_col',
+            'foo_change_mods',
             'foo_drop_idx',
             'foo_drop_cols',
             'foo_enum',

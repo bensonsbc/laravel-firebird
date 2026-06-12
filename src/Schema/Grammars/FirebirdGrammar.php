@@ -26,7 +26,7 @@ class FirebirdGrammar extends Grammar
      * Wrap a single string in keyword identifiers.
      *
      * @param  string  $value
-     * @return string
+     * @return list<string>
      */
     protected function wrapValue($value)
     {
@@ -286,6 +286,42 @@ class FirebirdGrammar extends Grammar
             $this->wrap($command->from),
             $this->wrap($command->to),
         );
+    }
+
+    /**
+     * Compile a change column command.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileChange(Blueprint $blueprint, Fluent $command)
+    {
+        $column = $command->column;
+        $table = $this->wrapTable($blueprint);
+        $name = $this->wrap($column->name);
+
+        $statements = [
+            sprintf('ALTER TABLE %s ALTER %s TYPE %s', $table, $name, $this->getType($column)),
+        ];
+
+        if (! is_null($column->default)) {
+            $statements[] = sprintf(
+                'ALTER TABLE %s ALTER %s SET DEFAULT %s',
+                $table,
+                $name,
+                $this->getDefaultValue($column->default),
+            );
+        }
+
+        $statements[] = sprintf(
+            'ALTER TABLE %s ALTER %s %s NOT NULL',
+            $table,
+            $name,
+            $column->nullable ? 'DROP' : 'SET',
+        );
+
+        return $statements;
     }
 
     /**
