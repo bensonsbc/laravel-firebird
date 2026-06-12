@@ -1,0 +1,50 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+        firebird: ['3', '4', '5']
+
+    name: PHP ${{ matrix.php }} / Firebird ${{ matrix.firebird }}
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:${{ matrix.firebird }}
+        env:
+          FIREBIRD_DATABASE: database.fdb
+          FIREBIRD_ROOT_PASSWORD: masterkey
+          FIREBIRD_USE_LEGACY_AUTH: 'true'
+        ports:
+          - 3050:3050
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_firebird
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3050
+          DB_DATABASE: /var/lib/firebird/data/database.fdb
+          DB_USERNAME: sysdba
+          DB_PASSWORD: masterkey
