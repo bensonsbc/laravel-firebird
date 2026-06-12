@@ -1566,6 +1566,66 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_update_with_joins()
+    {
+        $matchingUser = User::factory()->create([
+            'email' => 'update-join@example.com',
+        ]);
+        $otherUser = User::factory()->create([
+            'email' => 'other-update-join@example.com',
+        ]);
+
+        Order::factory()->create([
+            'user_id' => $matchingUser->id,
+            'name' => 'Update join target',
+            'quantity' => 1,
+        ]);
+        Order::factory()->create([
+            'user_id' => $otherUser->id,
+            'name' => 'Update join untouched',
+            'quantity' => 1,
+        ]);
+
+        $affected = DB::table('orders')
+            ->join('users', 'orders.user_id', '=', 'users.id')
+            ->where('users.email', 'update-join@example.com')
+            ->update(['quantity' => 9]);
+
+        $this->assertSame(1, $affected);
+        $this->assertSame(9, DB::table('orders')->where('name', 'Update join target')->value('quantity'));
+        $this->assertSame(1, DB::table('orders')->where('name', 'Update join untouched')->value('quantity'));
+    }
+
+    #[Test]
+    public function it_can_delete_with_joins()
+    {
+        $matchingUser = User::factory()->create([
+            'email' => 'delete-join@example.com',
+        ]);
+        $otherUser = User::factory()->create([
+            'email' => 'other-delete-join@example.com',
+        ]);
+
+        Order::factory()->create([
+            'user_id' => $matchingUser->id,
+            'name' => 'Delete join target',
+        ]);
+        Order::factory()->create([
+            'user_id' => $otherUser->id,
+            'name' => 'Delete join untouched',
+        ]);
+
+        $affected = DB::table('orders')
+            ->join('users', 'orders.user_id', '=', 'users.id')
+            ->where('users.email', 'delete-join@example.com')
+            ->delete();
+
+        $this->assertSame(1, $affected);
+        $this->assertFalse(DB::table('orders')->where('name', 'Delete join target')->exists());
+        $this->assertTrue(DB::table('orders')->where('name', 'Delete join untouched')->exists());
+    }
+
+    #[Test]
     public function it_can_insert_returning_id()
     {
         $id = DB::table('users')

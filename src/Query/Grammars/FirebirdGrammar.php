@@ -6,6 +6,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\Grammars\Grammar;
 use Illuminate\Database\Query\JoinLateralClause;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -565,6 +566,96 @@ class FirebirdGrammar extends Grammar
     public function compileJoinLateral(JoinLateralClause $join, string $expression): string
     {
         return trim("{$join->type} join lateral {$expression} on true");
+    }
+
+    /**
+     * Compile an update statement with joins into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  string  $table
+     * @param  string  $columns
+     * @param  string  $where
+     * @return string
+     */
+    protected function compileUpdateWithJoins(Builder $query, $table, $columns, $where)
+    {
+        return sprintf(
+            'update %s set %s where RDB$DB_KEY in (%s)',
+            $table,
+            $columns,
+            $this->compileJoinedDbKeySubquery($query)
+        );
+    }
+
+    /**
+     * Prepare the bindings for an update statement.
+     *
+     * @param  array  $bindings
+     * @param  array  $values
+     * @return array
+     */
+    public function prepareBindingsForUpdate(array $bindings, array $values)
+    {
+        $cleanBindings = Arr::except($bindings, ['select', 'join']);
+
+        $values = Arr::flatten(array_map(fn ($value) => value($value), $values));
+
+        return array_values(
+            array_merge($values, $bindings['join'], Arr::flatten($cleanBindings))
+        );
+    }
+
+    /**
+     * Compile a delete statement with joins into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  string  $table
+     * @param  string  $where
+     * @return string
+     */
+    protected function compileDeleteWithJoins(Builder $query, $table, $where)
+    {
+        return sprintf(
+            'delete from %s where RDB$DB_KEY in (%s)',
+            $table,
+            $this->compileJoinedDbKeySubquery($query)
+        );
+    }
+
+    /**
+     * Compile the subquery that locates joined mutation target records.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function compileJoinedDbKeySubquery(Builder $query)
+    {
+        $table = $this->wrapTable($query->from);
+        $joins = $this->compileJoins($query, $query->joins);
+        $where = $this->compileWheres($query);
+
+        return trim(sprintf(
+            'select %s from %s %s %s',
+            $this->wrapTable($this->joinedMutationTargetQualifier($query)).'.RDB$DB_KEY',
+            $table,
+            $joins,
+            $where
+        ));
+    }
+
+    /**
+     * Resolve the table or alias used to qualify RDB$DB_KEY in joined mutations.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function joinedMutationTargetQualifier(Builder $query)
+    {
+        if (is_string($query->from) && preg_match('/\s+as\s+(.+)$/i', $query->from, $matches)) {
+            return $matches[1];
+        }
+
+        return $query->from;
     }
 
     /**
