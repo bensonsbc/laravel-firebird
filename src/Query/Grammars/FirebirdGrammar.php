@@ -239,7 +239,26 @@ class FirebirdGrammar extends Grammar
             throw new RuntimeException('This database engine version does not support group limits on eager loaded relationships.');
         }
 
+        if (is_null($query->columns) || $query->columns === ['*']) {
+            $query->columns = [new Expression($this->wrapTable($this->groupLimitStarQualifier($query)).'.*')];
+        }
+
         return parent::compileGroupLimit($query);
+    }
+
+    /**
+     * Resolve the qualifier used for a Firebird group limit star projection.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return string
+     */
+    protected function groupLimitStarQualifier(Builder $query)
+    {
+        if (is_string($query->from) && preg_match('/\s+as\s+(.+)$/i', $query->from, $matches)) {
+            return $matches[1];
+        }
+
+        return $query->from;
     }
 
     /**

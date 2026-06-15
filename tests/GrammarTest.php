@@ -311,7 +311,28 @@ class GrammarTest extends TestCase
         $sql = $connection->table('pedido')->groupLimit(3, 'clienteid')->toSql();
 
         $this->assertSame(
-            'select * from (select *, row_number() over (partition by CLIENTEID) as LARAVEL_ROW from PEDIDO) as LARAVEL_TABLE where LARAVEL_ROW <= 3 order by LARAVEL_ROW',
+            'select * from (select PEDIDO.*, row_number() over (partition by CLIENTEID) as LARAVEL_ROW from PEDIDO) as LARAVEL_TABLE where LARAVEL_ROW <= 3 order by LARAVEL_ROW',
+            $sql
+        );
+    }
+
+    #[Test]
+    public function it_qualifies_group_limit_star_with_table_aliases()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+            'server_version' => '3.0.10',
+        ]);
+
+        $sql = $connection->table('pedido as p')
+            ->orderBy('p.created_at', 'desc')
+            ->offset(5)
+            ->groupLimit(3, 'p.clienteid')
+            ->toSql();
+
+        $this->assertSame(
+            'select * from (select P.*, row_number() over (partition by P.CLIENTEID order by P.CREATED_AT desc) as LARAVEL_ROW from PEDIDO as P) as LARAVEL_TABLE where LARAVEL_ROW <= 8 and LARAVEL_ROW > 5 order by LARAVEL_ROW',
             $sql
         );
     }
