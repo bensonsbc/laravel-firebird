@@ -97,6 +97,44 @@ O valor padrao ainda e manter identificadores entre aspas, preservando o comport
 - **Listas `IN` com mais de 1499 itens** sao divididas em multiplos grupos `IN` automaticamente (servidores antes do Firebird 5 rejeitam listas maiores), o que mantem o eager loading do Eloquent funcionando com resultados grandes.
 - **Limites em relacoes eager (`->limit()` em `with()`)** compilam com `ROW_NUMBER()` no Firebird 3+; em servidores sem window functions o driver lanca uma excecao clara.
 
+## Datas: cast `date` vs `datetime`
+
+No dialect 3 o tipo `DATE` do Firebird **nao tem componente de hora**. O Laravel, porem, formata todo valor temporal com um unico formato de conexao (`Y-m-d H:i:s`) — inclusive colunas com cast `date`. Isso faz o Firebird recusar a gravacao com *conversion error from string* (o MySQL/Postgres aceitam e truncam sozinhos; o Firebird e estrito).
+
+Como o formato de gravacao do Laravel e global e nao distingue `date` de `datetime`, a forma idiomatica de resolver e na camada do model, usando o cast que voce **ja declara**. O pacote oferece duas formas:
+
+**1. Trait `SerializesFirebirdDates`** — aplique nos models que tem colunas `DATE`:
+
+```php
+use Benson\LaravelFirebird\Eloquent\Concerns\SerializesFirebirdDates;
+use Illuminate\Database\Eloquent\Model;
+
+class Pedido extends Model
+{
+    use SerializesFirebirdDates;
+
+    protected $casts = [
+        'data_emissao' => 'date',      // gravado como 2026-06-18
+        'criado_em'    => 'datetime',  // gravado como 2026-06-18 13:45:00
+    ];
+}
+```
+
+**2. Model base `Benson\LaravelFirebird\Eloquent\Model`** — ja inclui o trait; estenda-o em vez do model padrao:
+
+```php
+use Benson\LaravelFirebird\Eloquent\Model;
+
+class Pedido extends Model
+{
+    protected $casts = ['data_emissao' => 'date'];
+}
+```
+
+Com qualquer uma das opcoes voce so declara o cast normal (`date` / `immutable_date`); o trait grava esses atributos sem a parte de hora e mantem `datetime` com a hora. A leitura continua devolvendo instancias `Carbon` normalmente.
+
+Observacao: isso atua na camada Eloquent. Um `DB::table('...')->insert(['data' => $carbon])` cru (sem model) ainda usa o formato global do Laravel — nesse caso passe a data ja como string `Y-m-d`.
+
 ## Limitacoes conhecidas
 
 - A conexao usa `PDO::ATTR_CASE_LOWER`: todos os nomes de coluna do resultset voltam em minusculas, inclusive aliases quotados (`select x as "userName"` retorna `username`).
