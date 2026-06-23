@@ -546,6 +546,24 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a unique index command (without a unique constraint).
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileUniqueIndex(Blueprint $blueprint, Fluent $command)
+    {
+        $columns = $this->columnize($command->columns);
+
+        $index = $this->wrap($this->constrainIdentifier($command->index));
+
+        $table = $this->wrapTable($blueprint);
+
+        return "CREATE UNIQUE INDEX {$index} ON {$table} ($columns)";
+    }
+
+    /**
      * Compile a foreign key command.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint

@@ -200,6 +200,46 @@ class SchemaGrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_compiles_a_unique_index_without_a_constraint()
+    {
+        $connection = $this->makeConnection([
+            'server_version' => '5.0.3',
+            'index_names' => ['uniqueIndex' => 'UX_{table}_{columns}'],
+        ]);
+
+        $blueprint = new \Benson\LaravelFirebird\Schema\Blueprint($connection, 'clientes', function (\Benson\LaravelFirebird\Schema\Blueprint $table) {
+            $table->uniqueIndex('email');
+            $table->uniqueIndex(['cpf', 'nome'], 'UX_EXPLICITO');
+        });
+
+        $sql = $blueprint->toSql();
+
+        $this->assertContains('CREATE UNIQUE INDEX "UX_clientes_email" ON "clientes" ("email")', $sql);
+        $this->assertContains('CREATE UNIQUE INDEX "UX_EXPLICITO" ON "clientes" ("cpf", "nome")', $sql);
+    }
+
+    #[Test]
+    public function it_drops_a_unique_index_by_name_and_by_columns()
+    {
+        $connection = $this->makeConnection([
+            'server_version' => '5.0.3',
+            'index_names' => ['uniqueIndex' => 'UX_{table}_{columns}'],
+        ]);
+
+        $blueprint = new \Benson\LaravelFirebird\Schema\Blueprint($connection, 'clientes', function (\Benson\LaravelFirebird\Schema\Blueprint $table) {
+            $table->dropUniqueIndex('UX_clientes_email');
+            $table->dropUniqueIndex(['email']);
+        });
+
+        $sql = $blueprint->toSql();
+
+        $this->assertSame([
+            'DROP INDEX "UX_clientes_email"',
+            'DROP INDEX "UX_clientes_email"',
+        ], $sql);
+    }
+
+    #[Test]
     public function it_keeps_the_framework_default_index_names_without_templates()
     {
         $connection = $this->makeConnection(['server_version' => '5.0.3']);

@@ -7,6 +7,34 @@ use Illuminate\Database\Schema\Blueprint as BaseBlueprint;
 class Blueprint extends BaseBlueprint
 {
     /**
+     * Create a unique index (without a unique constraint) on the table.
+     *
+     * Unlike unique(), which adds a UNIQUE constraint, this issues a plain
+     * CREATE UNIQUE INDEX. The auto-generated name follows the `uniqueIndex`
+     * template from `index_names` when configured.
+     *
+     * @param  string|array  $columns
+     * @param  string|null  $name
+     * @param  string|null  $algorithm
+     * @return \Illuminate\Support\Fluent
+     */
+    public function uniqueIndex($columns, $name = null, $algorithm = null)
+    {
+        return $this->indexCommand('uniqueIndex', $columns, $name, $algorithm);
+    }
+
+    /**
+     * Drop a unique index by name or by columns.
+     *
+     * @param  string|array  $index
+     * @return \Illuminate\Support\Fluent
+     */
+    public function dropUniqueIndex($index)
+    {
+        return $this->dropIndexCommand('dropIndex', 'uniqueIndex', $index);
+    }
+
+    /**
      * Create a default index name for the table.
      *
      * When the connection defines `index_names` templates, the project's own

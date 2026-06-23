@@ -58,17 +58,30 @@ Para definir a convencao **padrao do projeto** (aplicada quando o nome nao e inf
 'firebird' => [
     // ...
     'index_names' => [
-        'primary' => 'PK_{table}',
-        'foreign' => 'FK_{table}_{columns}',
-        'unique'  => 'UQ_{table}_{columns}',
-        'index'   => 'IX_{table}_{columns}',
+        'primary'     => 'PK_{table}',
+        'foreign'     => 'FK_{table}_{columns}',
+        'unique'      => 'UQ_{table}_{columns}',
+        'index'       => 'IX_{table}_{columns}',
+        'uniqueIndex' => 'UX_{table}_{columns}',
     ],
 ],
 ```
 
-Com isso, `$table->unique('email')` numa tabela `clientes` gera a constraint `UQ_clientes_email`. Cada tipo e opcional: os nao definidos mantem o padrao do Laravel (`tabela_colunas_tipo`). Como o `dropUnique(['email'])`/`dropIndex([...])` por colunas reusa o mesmo gerador de nome, dropar por colunas continua batendo o nome correto. Nomes acima do limite de identificadores do servidor recebem sufixo hash automaticamente.
+Com isso, `$table->unique('email')` numa tabela `clientes` gera a constraint `UQ_clientes_email`. Cada tipo e opcional: os nao definidos mantem o padrao do Laravel (`tabela_colunas_tipo`). Como o `dropUnique(['email'])`/`dropIndex([...])` por colunas reusa o mesmo gerador de nome, dropar por colunas continua batendo o nome correto. Nomes acima do limite de identificadores do servidor recebem sufixo hash automaticamente. O case final do nome depende do template **e** dos parametros `quote_identifiers`/`uppercase_identifiers` (ver [documentacao](docs/funcionalidades.md#identificadores-case-e-quoting)).
 
-> CHECK constraints nao tem nomenclatura automatica no Laravel (nao existe `$table->check()` nativo); o unico CHECK emitido e o inline do `enum()`.
+Para um indice unico **sem** constraint (`CREATE UNIQUE INDEX`), use `uniqueIndex()` / `dropUniqueIndex()`:
+
+```php
+$table->uniqueIndex('email');        // UX_clientes_email (template uniqueIndex)
+$table->dropUniqueIndex(['email']);
+```
+
+Notas:
+
+- **Foreign keys criam um indice automaticamente** no Firebird, com o mesmo nome da constraint. Nao crie um `index()` extra para a coluna da FK (geraria indice duplicado).
+- CHECK constraints nao tem nomenclatura automatica no Laravel (nao existe `$table->check()` nativo); o unico CHECK emitido e o inline do `enum()`.
+
+> Documentacao completa das funcionalidades em **[docs/funcionalidades.md](docs/funcionalidades.md)**.
 
 ## Recursos por versao do servidor
 
