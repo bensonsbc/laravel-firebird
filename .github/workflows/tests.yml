@@ -16,6 +16,13 @@ jobs:
 
     name: PHP ${{ matrix.php }} / Firebird ${{ matrix.firebird }}
 
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3050
+      DB_DATABASE: /var/lib/firebird/data/database.fdb
+      DB_USERNAME: sysdba
+      DB_PASSWORD: masterkey
+
     services:
       firebird:
         image: firebirdsql/firebird:${{ matrix.firebird }}
@@ -28,7 +35,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -37,14 +44,39 @@ jobs:
           extensions: pdo, pdo_firebird
           coverage: none
 
+      - name: Verify pdo_firebird is loaded
+        run: |
+          php -m
+          if ! php -m | grep -iq firebird; then
+            echo "::error::pdo_firebird extension is not loaded"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      - name: Wait for Firebird to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if php -r '
+              try {
+                  new PDO(
+                      "firebird:dbname=".getenv("DB_HOST")."/".getenv("DB_PORT").":".getenv("DB_DATABASE").";charset=UTF8",
+                      getenv("DB_USERNAME"), getenv("DB_PASSWORD")
+                  );
+                  exit(0);
+              } catch (Throwable $e) {
+                  fwrite(STDERR, $e->getMessage()."\n");
+                  exit(1);
+              }'; then
+              echo "Firebird is ready (attempt $i)."
+              exit 0
+            fi
+            echo "Waiting for Firebird... ($i/30)"
+            sleep 2
+          done
+          echo "::error::Firebird did not become ready in time"
+          exit 1
+
       - name: Run tests
         run: vendor/bin/phpunit
-        env:
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3050
-          DB_DATABASE: /var/lib/firebird/data/database.fdb
-          DB_USERNAME: sysdba
-          DB_PASSWORD: masterkey
