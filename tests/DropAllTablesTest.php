@@ -96,29 +96,52 @@ class DropAllTablesTest extends TestCase
 
     #[Test]
     #[RunInSeparateProcess]
-    public function it_drops_legacy_uppercase_tables_created_without_quotes()
+    public function it_drops_tables_regardless_of_identifier_case()
     {
-        try {
-            // Created without quotes, so Firebird stores the name in uppercase.
-            // getTables() lowercases it; dropping must still use the real name.
-            DB::statement('RECREATE TABLE FOO_LEGACY_UPPER (ID INTEGER NOT NULL PRIMARY KEY)');
+        // Identifier cases that must all be dropped:
+        //  - UPPER: created without quotes (legacy), stored uppercase.
+        //  - mixed: created quoted, stored with the exact mixed case.
+        //  - lower: created quoted, stored lowercase.
+        // getTables() lowercases every name, so dropping must use the real
+        // catalog name; the mixed case is the one that only works that way.
+        // Dialect 1 has no delimited identifiers, so only the uppercase case
+        // exists there.
+        $quotesIdentifiers = (string) DB::connection()->getConfig('dialect') !== '1';
 
-            // hasTable() would look up the lowercase literal, which never matches
-            // an uppercase legacy table, so check the catalog case-insensitively.
-            $this->assertTrue($this->relationExists('FOO_LEGACY_UPPER'));
+        $tables = $quotesIdentifiers
+            ? ['FOO_DROP_UPPER', 'Foo_Drop_Mixed', 'foo_drop_lower']
+            : ['FOO_DROP_UPPER'];
+
+        try {
+            DB::statement('RECREATE TABLE FOO_DROP_UPPER (ID INTEGER NOT NULL PRIMARY KEY)');
+
+            if ($quotesIdentifiers) {
+                DB::statement('RECREATE TABLE "Foo_Drop_Mixed" (ID INTEGER NOT NULL PRIMARY KEY)');
+                DB::statement('RECREATE TABLE "foo_drop_lower" (ID INTEGER NOT NULL PRIMARY KEY)');
+            }
+
+            // hasTable() would look up a lowercase literal, which never matches
+            // upper/mixed tables, so check the catalog case-insensitively.
+            foreach ($tables as $table) {
+                $this->assertTrue($this->relationExists($table), "expected {$table} to exist");
+            }
 
             Schema::dropAllTables();
 
-            $this->assertFalse($this->relationExists('FOO_LEGACY_UPPER'));
+            foreach ($tables as $table) {
+                $this->assertFalse($this->relationExists($table), "expected {$table} to be dropped");
+            }
             $this->assertFalse($this->relationExists('users'));
             $this->assertFalse($this->relationExists('orders'));
         } finally {
             DB::disconnect();
 
-            try {
-                DB::statement('DROP TABLE FOO_LEGACY_UPPER');
-            } catch (QueryException) {
-                //
+            foreach (['FOO_DROP_UPPER', '"Foo_Drop_Mixed"', '"foo_drop_lower"'] as $table) {
+                try {
+                    DB::statement('DROP TABLE '.$table);
+                } catch (QueryException) {
+                    //
+                }
             }
 
             $this->dropTables();
