@@ -20,7 +20,10 @@ class Builder extends BaseBuilder
 
         $this->connection->disconnect();
 
-        $tables = array_column($this->getTables(), 'name');
+        // Use the catalog names with their real case. getTables() lowercases
+        // them through the processor, which would re-quote a legacy uppercase
+        // table as a non-existent lowercase identifier on DROP.
+        $tables = $this->getRawRelationNames(0);
 
         if ($tables === []) {
             return;
@@ -60,7 +63,7 @@ class Builder extends BaseBuilder
     {
         $this->connection->disconnect();
 
-        $views = array_column($this->getViews(), 'name');
+        $views = $this->getRawRelationNames(1);
 
         if ($views === []) {
             return;
@@ -93,6 +96,34 @@ class Builder extends BaseBuilder
     public function disableForeignKeyConstraints()
     {
         return true;
+    }
+
+    /**
+     * Get relation names from the catalog preserving their real case.
+     *
+     * Unlike getTables()/getViews(), the names are not lowercased, so they can
+     * be re-quoted to reference tables created without quotes (which Firebird
+     * stores in uppercase) as well as quoted lowercase tables.
+     *
+     * @param  int  $type  0 for tables, 1 for views
+     * @return list<string>
+     */
+    protected function getRawRelationNames($type)
+    {
+        $relations = $this->connection->select(
+            'select trim(trailing from rdb$relation_name) as name '
+            .'from rdb$relations '
+            .'where rdb$relation_type = ? '
+            .'and (rdb$system_flag is null or rdb$system_flag = 0) '
+            .'order by rdb$relation_name',
+            [$type]
+        );
+
+        return array_values(array_filter(array_map(function ($relation) {
+            $relation = (array) $relation;
+
+            return $relation['name'] ?? $relation['NAME'] ?? null;
+        }, $relations)));
     }
 
     /**

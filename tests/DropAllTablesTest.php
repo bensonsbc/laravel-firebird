@@ -94,6 +94,41 @@ class DropAllTablesTest extends TestCase
         }
     }
 
+    #[Test]
+    #[RunInSeparateProcess]
+    public function it_drops_legacy_uppercase_tables_created_without_quotes()
+    {
+        try {
+            // Created without quotes, so Firebird stores the name in uppercase.
+            // getTables() lowercases it; dropping must still use the real name.
+            DB::statement('RECREATE TABLE FOO_LEGACY_UPPER (ID INTEGER NOT NULL PRIMARY KEY)');
+
+            $this->assertTrue(Schema::hasTable('foo_legacy_upper'));
+
+            Schema::dropAllTables();
+
+            $this->assertFalse(Schema::hasTable('foo_legacy_upper'));
+            $this->assertFalse(Schema::hasTable('users'));
+            $this->assertFalse(Schema::hasTable('orders'));
+        } finally {
+            DB::disconnect();
+
+            try {
+                DB::statement('DROP TABLE FOO_LEGACY_UPPER');
+            } catch (QueryException) {
+                //
+            }
+
+            $this->dropTables();
+            $this->dropGenerators();
+            $this->createTables();
+            $this->dropProcedures();
+            $this->createProcedures();
+
+            MigrationState::$migrated = true;
+        }
+    }
+
     protected function generatorExists($generator)
     {
         $name = config('database.connections.firebird.uppercase_identifiers')
