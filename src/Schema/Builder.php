@@ -3,11 +3,31 @@
 namespace Benson\LaravelFirebird\Schema;
 
 use Benson\LaravelFirebird\Concerns\DiscoversAutoIncrementGenerators;
+use Closure;
 use Illuminate\Database\Schema\Builder as BaseBuilder;
 
 class Builder extends BaseBuilder
 {
     use DiscoversAutoIncrementGenerators;
+
+    /**
+     * Create a new command set with a Firebird blueprint.
+     *
+     * Uses the Firebird blueprint so projects can define their own constraint
+     * and index naming convention through the `index_names` config.
+     *
+     * @param  string  $table
+     * @param  \Closure|null  $callback
+     * @return \Benson\LaravelFirebird\Schema\Blueprint
+     */
+    protected function createBlueprint($table, ?Closure $callback = null)
+    {
+        if (isset($this->resolver)) {
+            return call_user_func($this->resolver, $this->connection, $table, $callback);
+        }
+
+        return new Blueprint($this->connection, $table, $callback);
+    }
 
     /**
      * Drop all tables from the database.

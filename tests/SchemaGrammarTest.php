@@ -171,6 +171,58 @@ class SchemaGrammarTest extends TestCase
         $this->assertContains('comment on table "foo_users" is \'User\'\'s table\'', $statements);
     }
 
+    #[Test]
+    public function it_applies_custom_index_name_templates()
+    {
+        $connection = $this->makeConnection([
+            'server_version' => '5.0.3',
+            'index_names' => [
+                'primary' => 'pk_{table}',
+                'unique' => 'uq_{table}_{columns}',
+                'index' => 'ix_{table}_{columns}',
+                'foreign' => 'fk_{table}_{columns}',
+            ],
+        ]);
+
+        $blueprint = new \Benson\LaravelFirebird\Schema\Blueprint($connection, 'clientes', function (\Benson\LaravelFirebird\Schema\Blueprint $table) {
+            $table->primary('id');
+            $table->unique('email');
+            $table->index('nome');
+            $table->foreign('user_id')->references('id')->on('users');
+        });
+
+        $sql = implode(' ; ', $blueprint->toSql());
+
+        $this->assertStringContainsString('ADD CONSTRAINT "pk_clientes" PRIMARY KEY', $sql);
+        $this->assertStringContainsString('ADD CONSTRAINT "uq_clientes_email" UNIQUE', $sql);
+        $this->assertStringContainsString('CREATE INDEX "ix_clientes_nome"', $sql);
+        $this->assertStringContainsString('ADD CONSTRAINT "fk_clientes_user_id"', $sql);
+    }
+
+    #[Test]
+    public function it_keeps_the_framework_default_index_names_without_templates()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $blueprint = new \Benson\LaravelFirebird\Schema\Blueprint($connection, 'clientes', function (\Benson\LaravelFirebird\Schema\Blueprint $table) {
+            $table->unique('email');
+        });
+
+        $this->assertStringContainsString('"clientes_email_unique"', implode(' ; ', $blueprint->toSql()));
+    }
+
+    #[Test]
+    public function the_schema_builder_uses_the_firebird_blueprint()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $builder = $connection->getSchemaBuilder();
+        $method = new \ReflectionMethod($builder, 'createBlueprint');
+        $blueprint = $method->invoke($builder, 'clientes', null);
+
+        $this->assertInstanceOf(\Benson\LaravelFirebird\Schema\Blueprint::class, $blueprint);
+    }
+
     protected function createTableSql(FirebirdConnection $connection, string $table, callable $callback): array
     {
         $blueprint = new Blueprint($connection, $table, function (Blueprint $table) use ($callback) {

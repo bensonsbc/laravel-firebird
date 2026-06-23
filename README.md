@@ -40,6 +40,35 @@ Opcoes especificas do driver:
 | `dialect` | — | Defina `1` para bancos em dialeto 1 (ajusta tipos, datas e desliga identity). |
 | `role` | — | Role SQL enviada na conexao. |
 | `server_version` | autodetectada | Fixa a versao do servidor (ex.: `'3.0.10'`) e evita a deteccao via conexao. |
+| `index_names` | — | Templates para a nomenclatura padrao de PK/FK/unique/index (ver abaixo). |
+
+## Nomenclatura de constraints e indices
+
+Voce sempre pode nomear explicitamente passando o segundo argumento:
+
+```php
+$table->primary('id', 'pk_clientes');
+$table->unique('email', 'uq_clientes_email');
+$table->foreign('user_id', 'fk_clientes_users')->references('id')->on('users');
+```
+
+Para definir a convencao **padrao do projeto** (aplicada quando o nome nao e informado), configure `index_names` na conexao com os placeholders `{table}` e `{columns}`:
+
+```php
+'firebird' => [
+    // ...
+    'index_names' => [
+        'primary' => 'PK_{table}',
+        'foreign' => 'FK_{table}_{columns}',
+        'unique'  => 'UQ_{table}_{columns}',
+        'index'   => 'IX_{table}_{columns}',
+    ],
+],
+```
+
+Com isso, `$table->unique('email')` numa tabela `clientes` gera a constraint `UQ_clientes_email`. Cada tipo e opcional: os nao definidos mantem o padrao do Laravel (`tabela_colunas_tipo`). Como o `dropUnique(['email'])`/`dropIndex([...])` por colunas reusa o mesmo gerador de nome, dropar por colunas continua batendo o nome correto. Nomes acima do limite de identificadores do servidor recebem sufixo hash automaticamente.
+
+> CHECK constraints nao tem nomenclatura automatica no Laravel (nao existe `$table->check()` nativo); o unico CHECK emitido e o inline do `enum()`.
 
 ## Recursos por versao do servidor
 
