@@ -223,19 +223,68 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile the column definition.
+     *
+     * Computed columns (virtualAs/storedAs or the computed type) are emitted as
+     * Firebird's `COMPUTED BY (expr)` without a type or other modifiers. Note
+     * that Firebird computed columns are always virtual; storedAs is treated
+     * the same as virtualAs.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function getColumn(Blueprint $blueprint, $column)
+    {
+        $expression = $this->computedColumnExpression($column);
+
+        if (! is_null($expression)) {
+            return $this->wrap($column).' COMPUTED BY ('.$expression.')';
+        }
+
+        return parent::getColumn($blueprint, $column);
+    }
+
+    /**
+     * Resolve a computed column expression, if any.
+     *
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string|null
+     */
+    protected function computedColumnExpression(Fluent $column)
+    {
+        if (! is_null($column->storedAs)) {
+            return (string) $column->storedAs;
+        }
+
+        if (! is_null($column->virtualAs)) {
+            return (string) $column->virtualAs;
+        }
+
+        if ($column->type === 'computed' && ! is_null($column->expression)) {
+            return (string) $column->expression;
+        }
+
+        return null;
+    }
+
+    /**
      * Compile a create table command.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
      * @param  \Illuminate\Support\Fluent  $command
-     * @return string
+     * @return string|array
      */
     public function compileCreate(Blueprint $blueprint, Fluent $command)
     {
-        if ($blueprint->temporary) {
-            throw new \LogicException('This database driver does not support temporary tables.');
-        }
-
         $columns = implode(', ', $this->getColumns($blueprint));
+
+        // Temporary tables map to Firebird global temporary tables. PRESERVE
+        // ROWS keeps the rows for the whole connection, matching the session
+        // scope of temporary tables on other engines.
+        if ($blueprint->temporary) {
+            return 'create global temporary table '.$this->wrapTable($blueprint)." ($columns) on commit preserve rows";
+        }
 
         $sql = 'create table '.$this->wrapTable($blueprint)." ($columns)";
 

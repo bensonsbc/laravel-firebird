@@ -309,6 +309,34 @@ Diferença entre os dois:
 
 ---
 
+## Colunas computadas
+
+Colunas `virtualAs()`/`storedAs()` (e o tipo `computed`) compilam para `COMPUTED BY` do Firebird:
+
+```php
+Schema::create('itens', function (Blueprint $table) {
+    $table->integer('qtd');
+    $table->decimal('preco', 10, 2);
+    $table->decimal('total', 12, 2)->virtualAs('"qtd" * "preco"');
+});
+```
+
+A expressão é SQL cru — referencie as colunas com o case/aspas que a conexão usa (no dialeto 1, sem aspas e em maiúsculas). No Firebird toda coluna computada é **virtual** (calculada na leitura); `storedAs()` é tratado como `virtualAs()`.
+
+## Tabelas temporárias
+
+`$table->temporary()` cria uma `GLOBAL TEMPORARY TABLE ... ON COMMIT PRESERVE ROWS` (escopo de conexão, semelhante a tabelas temporárias de sessão de outros bancos):
+
+```php
+Schema::create('calc_temp', function (Blueprint $table) {
+    $table->temporary();
+    $table->integer('id');
+    $table->decimal('valor', 12, 2);
+});
+```
+
+> A definição da GTT é permanente no schema; só os dados são temporários. `getTables()`/`dropAllTables()` listam apenas tabelas persistentes (`relation_type = 0`), então GTTs não são removidas por `dropAllTables()`.
+
 ## Comportamentos específicos do Firebird
 
 - **`insertOrIgnore`** insere linha a linha em transação e ignora violações de qualquer constraint única. `insertOrIgnoreUsing` resolve os índices únicos da tabela e gera `NOT EXISTS` por índice.

@@ -104,6 +104,7 @@ trait MigrateDatabase
             'foo_change_mods',
             'foo_column_types',
             'foo_comments',
+            'foo_computed',
             'foo_identity',
             'foo_drop_all_child',
             'foo_drop_all_custom',

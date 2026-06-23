@@ -246,6 +246,40 @@ class SchemaGrammarTest extends TestCase
         $this->assertStringNotContainsString('CONSTRAINT', $sql);
     }
 
+    #[Test]
+    public function it_compiles_computed_columns_as_computed_by()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $sql = $this->firebirdCreateSql($connection, 'itens', function ($table) {
+            $table->integer('qtd');
+            $table->decimal('preco', 10, 2);
+            $table->decimal('total', 12, 2)->virtualAs('"qtd" * "preco"');
+            $table->string('rotulo')->storedAs('\'item\'');
+        });
+
+        $this->assertStringContainsString('"total" COMPUTED BY ("qtd" * "preco")', $sql);
+        $this->assertStringContainsString('"rotulo" COMPUTED BY (\'item\')', $sql);
+        // Computed columns carry no type or NOT NULL.
+        $this->assertStringNotContainsString('COMPUTED BY ("qtd" * "preco") NOT NULL', $sql);
+        $this->assertStringNotContainsString('DECIMAL(12, 2) COMPUTED', $sql);
+    }
+
+    #[Test]
+    public function it_compiles_temporary_tables_as_global_temporary()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $sql = $this->firebirdCreateSql($connection, 'tmp_calc', function ($table) {
+            $table->temporary();
+            $table->integer('id');
+            $table->string('nome');
+        });
+
+        $this->assertStringStartsWith('create global temporary table "tmp_calc"', $sql);
+        $this->assertStringEndsWith('on commit preserve rows', $sql);
+    }
+
     protected function firebirdCreateSql(FirebirdConnection $connection, string $table, callable $callback): string
     {
         $blueprint = new \Benson\LaravelFirebird\Schema\Blueprint($connection, $table, function ($table) use ($callback) {

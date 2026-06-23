@@ -273,6 +273,77 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_creates_computed_columns()
+    {
+        Schema::dropIfExists('foo_computed');
+
+        try {
+            // The computed expression is raw SQL, so it must reference columns
+            // with the case/quoting the connection uses. Dialect 1 has no
+            // delimited identifiers (uppercase, unquoted).
+            $expression = config('database.connections.firebird.uppercase_identifiers')
+                ? 'QTD * PRECO'
+                : '"qtd" * "preco"';
+
+            Schema::create('foo_computed', function (Blueprint $table) use ($expression) {
+                $table->integer('qtd');
+                $table->decimal('preco', 10, 2);
+                $table->decimal('total', 12, 2)->virtualAs($expression);
+            });
+
+            DB::table('foo_computed')->insert(['qtd' => 3, 'preco' => '10.50']);
+
+            $total = DB::table('foo_computed')->value('total');
+
+            $this->assertSame('31.50', number_format((float) $total, 2, '.', ''));
+        } finally {
+            Schema::dropIfExists('foo_computed');
+        }
+    }
+
+    #[Test]
+    public function it_creates_temporary_tables_as_global_temporary()
+    {
+        $table = DB::getQueryGrammar()->wrapTable('foo_temp');
+
+        try {
+            DB::statement('DROP TABLE '.$table);
+        } catch (QueryException) {
+            //
+        }
+
+        try {
+            Schema::create('foo_temp', function (Blueprint $table) {
+                $table->temporary();
+                $table->integer('id');
+                $table->string('nome');
+            });
+
+            // Global temporary tables are relation_type 4 (preserve) / 5 (delete).
+            $type = DB::selectOne(
+                'select rdb$relation_type as t from rdb$relations where trim(rdb$relation_name) = ?',
+                [config('database.connections.firebird.uppercase_identifiers') ? 'FOO_TEMP' : 'foo_temp']
+            );
+            $type = (array) $type;
+
+            $this->assertContains((int) ($type['t'] ?? $type['T']), [4, 5]);
+
+            DB::table('foo_temp')->insert(['id' => 1, 'nome' => 'tmp']);
+            $this->assertSame(1, DB::table('foo_temp')->count());
+        } finally {
+            // A preserve-rows GTT holds its rows for the connection; disconnect
+            // first so the DROP is not blocked by an "object in use" lock.
+            DB::disconnect();
+
+            try {
+                DB::statement('DROP TABLE '.$table);
+            } catch (QueryException) {
+                //
+            }
+        }
+    }
+
+    #[Test]
     public function it_stores_table_and_column_comments()
     {
         Schema::dropIfExists('foo_comments');
@@ -715,24 +786,6 @@ class SchemaTest extends TestCase
         }
     }
 
-    #[Test]
-    public function it_throws_an_exception_for_creating_temporary_tables()
-    {
-        Schema::dropIfExists('foo');
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('This database driver does not support temporary tables.');
-
-        $this->assertFalse(Schema::hasTable('foo'));
-
-        Schema::create('foo', function (Blueprint $table) {
-            $table->temporary();
-
-            $table->string('bar');
-        });
-
-        $this->assertFalse(Schema::hasTable('foo'));
-    }
 
     #[Test]
     public function it_can_drop_table()
