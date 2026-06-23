@@ -35,6 +35,21 @@ class Blueprint extends BaseBlueprint
     }
 
     /**
+     * Resolve the auto-generated name for an index/constraint type.
+     *
+     * Exposes the naming convention so the grammar can name inline primary
+     * keys of auto-increment columns (which never reach compilePrimary).
+     *
+     * @param  string  $type
+     * @param  array  $columns
+     * @return string
+     */
+    public function resolveIndexName($type, array $columns)
+    {
+        return $this->createIndexName($type, $columns);
+    }
+
+    /**
      * Create a default index name for the table.
      *
      * When the connection defines `index_names` templates, the project's own
