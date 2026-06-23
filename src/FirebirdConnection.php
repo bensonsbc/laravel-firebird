@@ -312,6 +312,34 @@ class FirebirdConnection extends DatabaseConnection
     }
 
     /**
+     * Bind values to their parameters in the given statement.
+     *
+     * Firebird's pdo driver mis-scales integers bound with PDO::PARAM_INT into
+     * NUMERIC/DECIMAL columns (e.g. 40 becomes 0.40 on DECIMAL(5,2)). Binding
+     * integers as strings avoids it; Firebird converts the string literal to
+     * the column's type with the correct scale.
+     *
+     * @param  \PDOStatement  $statement
+     * @param  array  $bindings
+     * @return void
+     */
+    public function bindValues($statement, $bindings)
+    {
+        foreach ($bindings as $key => $value) {
+            $statement->bindValue(
+                is_string($key) ? $key : $key + 1,
+                $value,
+                match (true) {
+                    is_resource($value) => PDO::PARAM_LOB,
+                    is_null($value) => PDO::PARAM_NULL,
+                    is_bool($value) => PDO::PARAM_INT,
+                    default => PDO::PARAM_STR,
+                },
+            );
+        }
+    }
+
+    /**
      * Get a new query builder instance.
      *
      * @return \Illuminate\Database\Query\Builder

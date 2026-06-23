@@ -67,4 +67,36 @@ class DataTypeTest extends TestCase
         $this->assertStringContainsString('13:45:30', (string) $row->seen_at);
         $this->assertSame('1', rtrim((string) $row->active));
     }
+
+    #[Test]
+    public function it_stores_integer_values_into_scaled_decimal_columns_without_losing_scale()
+    {
+        Schema::dropIfExists('foo_types');
+
+        Schema::create('foo_types', function (Blueprint $table) {
+            $table->integer('id');
+            $table->decimal('score', 5, 2);
+            $table->decimal('rate', 18, 6);
+            $table->integer('qty');
+        });
+
+        // Integers (not strings) are the regression: PDO::PARAM_INT used to make
+        // Firebird mis-scale 40 into 0.40 on a DECIMAL(5,2) column.
+        DB::table('foo_types')->insert([
+            'id' => 1,
+            'score' => 40,
+            'rate' => 7,
+            'qty' => 123,
+        ]);
+
+        $row = DB::table('foo_types')->where('id', 1)->first();
+
+        $this->assertSame('40.00', number_format((float) $row->score, 2, '.', ''));
+        $this->assertSame('7.000000', number_format((float) $row->rate, 6, '.', ''));
+        $this->assertSame(123, (int) $row->qty);
+
+        // A float into a scaled column must keep its value too.
+        DB::table('foo_types')->where('id', 1)->update(['score' => 40.5]);
+        $this->assertSame('40.50', number_format((float) DB::table('foo_types')->where('id', 1)->value('score'), 2, '.', ''));
+    }
 }

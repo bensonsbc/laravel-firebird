@@ -319,6 +319,7 @@ Diferença entre os dois:
 - **Listas `IN` com mais de 1499 itens** são divididas em múltiplos grupos `IN` automaticamente.
 - **`whereLike`** respeita a collation do Firebird (não força `UPPER()`, para não quebrar índices/collation CI).
 - **`dropAllTables`/`dropAllViews`** usam o nome real do catálogo (case preservado), funcionando tanto para tabelas minúsculas (criadas com aspas) quanto maiúsculas (legadas, criadas sem aspas).
+- **Bind de inteiros em colunas `DECIMAL`/`NUMERIC` escaladas.** O `pdo_firebird` aplica escala errada quando um inteiro é vinculado com `PDO::PARAM_INT` (ex.: `40` vira `0.40` numa `DECIMAL(5,2)`). O driver sobrescreve `bindValues()` para vincular inteiros como string (`PARAM_STR`), que o Firebird converte com a escala correta. Vale para qualquer coluna; ints normais, `where` e booleanos continuam corretos.
 
 ---
 
