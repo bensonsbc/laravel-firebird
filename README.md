@@ -122,6 +122,57 @@ This driver exists because the community shares its work openly. If it saved you
 
 ---
 
+## Antes × Depois / Before × After
+
+Paridade funcional estimada com os drivers oficiais (MySQL/PostgreSQL/SQL Server) / estimated functional parity with the first-party drivers:
+
+| | |
+| --- | --- |
+| **Antes / Before** | **~51%** |
+| **Depois / After** | **~96%** |
+| Testes / Tests | **216** (Firebird 3/4/5 · dialetos/dialects 1 & 3) |
+| Cobertura de linhas / Line coverage | **~87%** |
+
+Legenda / Legend: ✅ pleno/full · ⚠️ parcial/partial · ❌ ausente/missing · 🚫 limitação do Firebird / Firebird limitation
+
+| Funcionalidade / Feature | Antes / Before | Depois / After |
+|---|:---:|:---:|
+| Query builder core (select/where/join/group/order/union) | ✅ | ✅ |
+| Paginação / Pagination (limit/offset, paginate, cursor) | ✅ | ✅ |
+| `whereDate/Time/...` | ✅ | ✅ |
+| Locks `forUpdate` | ✅ | ✅ |
+| Stored procedures | ✅ | ✅ |
+| `insertGetId` / `insertUsing` | ✅ | ✅ |
+| `upsert` (MERGE) | ✅ | ✅ |
+| Update/Delete + join | ✅ | ✅ |
+| `truncate` | ✅ | ✅ |
+| Schema CRUD (colunas/índices/FK · columns/indexes/FK) | ✅ | ✅ |
+| Introspecção / Introspection (tables/columns/indexes/FKs/views) | ✅ | ✅ |
+| Transações / Transactions, savepoints | ✅ | ✅ |
+| `exists` + union | ⚠️ | ✅ |
+| `insertOrIgnore` (qualquer unique / any unique) | ⚠️ | ✅ |
+| Identity columns (FB3+) | ❌ | ✅ |
+| Identificadores 63 chars + anti-colisão / 63-char identifiers | ⚠️ | ✅ |
+| `change()` nulidade por versão / version-aware nullability | ⚠️ | ✅ |
+| Tipos com timezone / time-zone types (FB4+) | ❌ | ✅ |
+| Comments (tabela/coluna · table/column) | ❌ | ✅ |
+| `whereLike(caseSensitive)` | ❌ | ⚠️ |
+| `whereIn` > 1499 | ❌ | ✅ |
+| `groupLimit` (eager load) | ❌ | ✅ |
+| `json()` (armazenamento / storage) | ⚠️ | ⚠️ |
+| Reconnect / lost connection | ❌ | ✅ |
+| `UniqueConstraintViolationException` | ❌ | ✅ |
+| Cast `date` sem hora / without time | ❌ | ✅ |
+| Bind de int em `DECIMAL` / integer bind into `DECIMAL` | ❌ | ✅ |
+| `dropAllTables` (case misto / mixed case) | ⚠️ | ✅ |
+| `auto_increment` na introspecção / in introspection | ❌ | ✅ |
+| `server_version` / feature detection | ❌ | ✅ |
+| Nomenclatura custom / custom naming (`index_names`) | ❌ | ✅ |
+| `uniqueIndex` sem constraint / without constraint | ❌ | ✅ |
+| Colunas computadas / computed columns (`COMPUTED BY`) | ❌ | ✅ |
+| Tabelas temporárias / temporary tables (GTT) | ❌ | ✅ |
+| JSON ops / full-text / spatial / rename table | 🚫 | 🚫 |
+
 ## Testes / Tests
 
 ```bash
