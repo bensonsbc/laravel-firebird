@@ -103,13 +103,15 @@ class DropAllTablesTest extends TestCase
             // getTables() lowercases it; dropping must still use the real name.
             DB::statement('RECREATE TABLE FOO_LEGACY_UPPER (ID INTEGER NOT NULL PRIMARY KEY)');
 
-            $this->assertTrue(Schema::hasTable('foo_legacy_upper'));
+            // hasTable() would look up the lowercase literal, which never matches
+            // an uppercase legacy table, so check the catalog case-insensitively.
+            $this->assertTrue($this->relationExists('FOO_LEGACY_UPPER'));
 
             Schema::dropAllTables();
 
-            $this->assertFalse(Schema::hasTable('foo_legacy_upper'));
-            $this->assertFalse(Schema::hasTable('users'));
-            $this->assertFalse(Schema::hasTable('orders'));
+            $this->assertFalse($this->relationExists('FOO_LEGACY_UPPER'));
+            $this->assertFalse($this->relationExists('users'));
+            $this->assertFalse($this->relationExists('orders'));
         } finally {
             DB::disconnect();
 
@@ -127,6 +129,16 @@ class DropAllTablesTest extends TestCase
 
             MigrationState::$migrated = true;
         }
+    }
+
+    protected function relationExists($name)
+    {
+        return (bool) DB::selectOne(
+            'select 1 as found from rdb$relations '
+            .'where upper(trim(rdb$relation_name)) = ? '
+            .'and (rdb$system_flag is null or rdb$system_flag = 0)',
+            [strtoupper($name)]
+        );
     }
 
     protected function generatorExists($generator)
