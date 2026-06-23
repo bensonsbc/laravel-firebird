@@ -152,6 +152,19 @@ PHP 8.2+ · Laravel 12/13 · Firebird 2.5 → 5.0 (dialetos 1 e 3).
 
 O objetivo foi tornar o Firebird um cidadão de primeira classe no Laravel — não um "quase funciona". Se você usa Firebird com PHP, feedback e contribuições são muito bem-vindos.
 
+### Open source se sustenta com comunidade
+
+Este driver — como tantas ferramentas que usamos todo dia — só existe porque pessoas decidiram compartilhar o seu trabalho abertamente. Cada correção, cada teste e cada linha de documentação nasce de horas que alguém doou para que o próximo desenvolvedor tivesse um caminho mais fácil. O Firebird em si é um exemplo disso: um banco maduro, gratuito e mantido pela comunidade há décadas.
+
+Manter um projeto open source vivo dá trabalho: responder issues, testar contra várias versões, escrever documentação, garantir compatibilidade. Se este driver te poupou tempo, considere **retribuir** — de várias formas, todas valiosas:
+
+- ⭐ Dê uma estrela no repositório e compartilhe com quem usa Firebird.
+- 🐛 Abra issues com casos reais e mande pull requests.
+- 📝 Melhore a documentação e ajude outros desenvolvedores.
+- 💜 **Patrocine o desenvolvimento**: [github.com/sponsors/bensonsbc](https://github.com/sponsors/bensonsbc)
+
+Patrocínio não é só sobre dinheiro — é sobre tornar sustentável o tempo dedicado a manter o ecossistema Firebird + PHP saudável e evoluindo. Qualquer apoio, de qualquer tamanho, faz diferença real.
+
 ---
 
 ## 🇬🇧 English
@@ -299,6 +312,19 @@ PHP 8.2+ · Laravel 12/13 · Firebird 2.5 → 5.0 (dialects 1 and 3).
 ### Closing
 
 The goal was to make Firebird a first-class citizen in Laravel — not a "mostly works". If you run Firebird with PHP, feedback and contributions are very welcome.
+
+### Open source runs on community
+
+This driver — like so many tools we use every day — only exists because people chose to share their work openly. Every fix, every test and every line of docs comes from hours someone donated so the next developer would have an easier path. Firebird itself is proof of that: a mature, free, community-maintained database that's been around for decades.
+
+Keeping an open source project alive is real work: triaging issues, testing across versions, writing docs, ensuring compatibility. If this driver saved you time, consider **giving back** — in any of these ways, all valuable:
+
+- ⭐ Star the repository and share it with fellow Firebird users.
+- 🐛 Open issues with real-world cases and send pull requests.
+- 📝 Improve the docs and help other developers.
+- 💜 **Sponsor the development**: [github.com/sponsors/bensonsbc](https://github.com/sponsors/bensonsbc)
+
+Sponsorship isn't only about money — it's about making the time spent keeping the Firebird + PHP ecosystem healthy and evolving sustainable. Any support, of any size, makes a real difference.
 
 ---
 

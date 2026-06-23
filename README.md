@@ -1,18 +1,26 @@
 # Benson Laravel Firebird
 
-Driver Firebird para Laravel baseado em `harrygulliford/laravel-firebird`.
+Firebird database driver for Laravel · Driver Firebird para Laravel.
 
-Nome oficial do pacote/driver:
+**[🇧🇷 Português](#-português)** · **[🇬🇧 English](#-english)**
 
-```text
-benson/laravel-firebird
+> Fork de / fork of **[`harrygulliford/laravel-firebird`](https://github.com/harrygulliford/laravel-firebird)** (que descende de / descending from **[`jacquestvanzuydam/laravel-firebird`](https://github.com/jacquestvanzuydam/laravel-firebird)**). Veja [Créditos](#créditos--credits).
+>
+> 💜 Apoie o projeto / support the project: **[github.com/sponsors/bensonsbc](https://github.com/sponsors/bensonsbc)**
+
+---
+
+## 🇧🇷 Português
+
+Integração Firebird previsível para o Laravel: Query Builder, Eloquent, paginação, `insertGetId()` com `INSERT ... RETURNING`, `insertOrIgnore`, `upsert` via `MERGE`, update/delete com joins, truncate, identity columns, colunas computadas, tabelas temporárias e introspecção de schema — com suporte a Firebird 2.5 → 5.0 (dialetos 1 e 3).
+
+### Instalação
+
+```bash
+composer require benson/laravel-firebird
 ```
 
-O objetivo do projeto e manter uma integracao Firebird mais previsivel para aplicacoes Laravel, cobrindo Query Builder, Eloquent, paginacao, `exists`, `insertGetId()` com `INSERT ... RETURNING`, `insertOrIgnore`, `upsert` via `MERGE`, update/delete com joins, truncate com reinicio de auto incremento e introspeccao de schema.
-
-## Configuracao
-
-Exemplo de conexao Laravel:
+Configure a conexão em `config/database.php`:
 
 ```php
 'firebird' => [
@@ -24,178 +32,116 @@ Exemplo de conexao Laravel:
     'password' => env('DB_PASSWORD', 'masterkey'),
     'charset' => env('DB_CHARSET', 'UTF8'),
 
-    'quote_identifiers' => false,
-    'uppercase_identifiers' => true,
+    'quote_identifiers' => true,
+    'uppercase_identifiers' => false,
     'pagination_mode' => 'first_skip',
 ],
 ```
 
-Opcoes especificas do driver:
+### Opções específicas do driver
 
-| Opcao | Padrao | Descricao |
+| Opção | Padrão | Descrição |
 | --- | --- | --- |
-| `quote_identifiers` | `true` | Envolve identificadores em aspas duplas. Desative para bases legadas com objetos sem aspas. |
-| `uppercase_identifiers` | `false` | Converte identificadores nao quotados para maiusculas (estilo legado). |
-| `pagination_mode` | `first_skip` | `first_skip` usa `SELECT FIRST n SKIP m`; `offset_fetch` usa `OFFSET ... FETCH`. |
+| `quote_identifiers` | `true` | Envolve identificadores em aspas duplas. Desative para bases legadas sem aspas. |
+| `uppercase_identifiers` | `false` | Converte identificadores não quotados para maiúsculas (estilo legado). |
+| `pagination_mode` | `first_skip` | `first_skip` = `SELECT FIRST n SKIP m`; `offset_fetch` = `OFFSET ... FETCH`. |
 | `dialect` | — | Defina `1` para bancos em dialeto 1 (ajusta tipos, datas e desliga identity). |
-| `role` | — | Role SQL enviada na conexao. |
-| `server_version` | autodetectada | Fixa a versao do servidor (ex.: `'3.0.10'`) e evita a deteccao via conexao. |
-| `index_names` | — | Templates para a nomenclatura padrao de PK/FK/unique/index (ver abaixo). |
+| `role` | — | Role SQL enviada na conexão. |
+| `server_version` | autodetectada | Fixa a versão do servidor (ex.: `'3.0.10'`), evitando a detecção via conexão. |
+| `index_names` | — | Templates de nomenclatura de PK/FK/unique/index. |
 
-## Nomenclatura de constraints e indices
+### Destaques
 
-Voce sempre pode nomear explicitamente passando o segundo argumento:
+- **Recursos por versão**: identity columns e `ALTER COLUMN` de nulidade no Firebird 3+; tipos `WITH TIME ZONE` e identificadores de 63 caracteres no Firebird 4+.
+- **Nomenclatura configurável** de constraints/índices (`index_names`), inclusive para a PK inline de colunas identity.
+- **Colunas computadas** (`virtualAs`/`storedAs` → `COMPUTED BY`) e **tabelas temporárias** (`temporary()` → GTT).
+- **`uniqueIndex()`** (índice único sem constraint), **`COMMENT ON`**, **`insertOrIgnore`** por constraint real, reconexão automática e introspecção com `auto_increment`.
+- **Datas**: trait `SerializesFirebirdDates` (e model base) grava cast `date` sem o componente de hora, evitando o erro de conversão do Firebird.
 
-```php
-$table->primary('id', 'pk_clientes');
-$table->unique('email', 'uq_clientes_email');
-$table->foreign('user_id', 'fk_clientes_users')->references('id')->on('users');
+> 📖 **Documentação completa das funcionalidades: [docs/funcionalidades.md](docs/funcionalidades.md)** — inclui identificadores/case/quoting, paginação, datas, nomenclatura, computed columns, GTT, limitações e mais.
+
+### Apoie o open source
+
+Este driver existe porque a comunidade compartilha seu trabalho abertamente. Se ele te poupou tempo, considere retribuir: ⭐ dê uma estrela, 🐛 abra issues/PRs, ou 💜 **patrocine o desenvolvimento** em **[github.com/sponsors/bensonsbc](https://github.com/sponsors/bensonsbc)**. Qualquer apoio torna sustentável manter o ecossistema Firebird + PHP saudável.
+
+---
+
+## 🇬🇧 English
+
+A predictable Firebird integration for Laravel: Query Builder, Eloquent, pagination, `insertGetId()` via `INSERT ... RETURNING`, `insertOrIgnore`, `upsert` via `MERGE`, joined update/delete, truncate, identity columns, computed columns, temporary tables and schema introspection — supporting Firebird 2.5 → 5.0 (dialects 1 and 3).
+
+### Installation
+
+```bash
+composer require benson/laravel-firebird
 ```
 
-Para definir a convencao **padrao do projeto** (aplicada quando o nome nao e informado), configure `index_names` na conexao com os placeholders `{table}` e `{columns}`:
+Configure the connection in `config/database.php`:
 
 ```php
 'firebird' => [
-    // ...
-    'index_names' => [
-        'primary'     => 'PK_{table}',
-        'foreign'     => 'FK_{table}_{columns}',
-        'unique'      => 'UQ_{table}_{columns}',
-        'index'       => 'IX_{table}_{columns}',
-        'uniqueIndex' => 'UX_{table}_{columns}',
-    ],
+    'driver' => 'firebird',
+    'host' => env('DB_HOST', '127.0.0.1'),
+    'port' => env('DB_PORT', '3050'),
+    'database' => env('DB_DATABASE'),
+    'username' => env('DB_USERNAME', 'sysdba'),
+    'password' => env('DB_PASSWORD', 'masterkey'),
+    'charset' => env('DB_CHARSET', 'UTF8'),
+
+    'quote_identifiers' => true,
+    'uppercase_identifiers' => false,
+    'pagination_mode' => 'first_skip',
 ],
 ```
 
-Com isso, `$table->unique('email')` numa tabela `clientes` gera a constraint `UQ_clientes_email`. Cada tipo e opcional: os nao definidos mantem o padrao do Laravel (`tabela_colunas_tipo`). Como o `dropUnique(['email'])`/`dropIndex([...])` por colunas reusa o mesmo gerador de nome, dropar por colunas continua batendo o nome correto. Nomes acima do limite de identificadores do servidor recebem sufixo hash automaticamente. O case final do nome depende do template **e** dos parametros `quote_identifiers`/`uppercase_identifiers` (ver [documentacao](docs/funcionalidades.md#identificadores-case-e-quoting)).
+### Driver-specific options
 
-Para um indice unico **sem** constraint (`CREATE UNIQUE INDEX`), use `uniqueIndex()` / `dropUniqueIndex()`:
+| Option | Default | Description |
+| --- | --- | --- |
+| `quote_identifiers` | `true` | Wraps identifiers in double quotes. Disable for legacy unquoted schemas. |
+| `uppercase_identifiers` | `false` | Uppercases unquoted identifiers (legacy style). |
+| `pagination_mode` | `first_skip` | `first_skip` = `SELECT FIRST n SKIP m`; `offset_fetch` = `OFFSET ... FETCH`. |
+| `dialect` | — | Set `1` for dialect-1 databases (adjusts types, dates, disables identity). |
+| `role` | — | SQL role sent on connect. |
+| `server_version` | auto-detected | Pin the server version (e.g. `'3.0.10'`) to skip detection over the connection. |
+| `index_names` | — | Naming templates for PK/FK/unique/index. |
 
-```php
-$table->uniqueIndex('email');        // UX_clientes_email (template uniqueIndex)
-$table->dropUniqueIndex(['email']);
-```
+### Highlights
 
-Notas:
+- **Version-aware features**: identity columns and nullability `ALTER COLUMN` on Firebird 3+; `WITH TIME ZONE` types and 63-char identifiers on Firebird 4+.
+- **Configurable naming** of constraints/indexes (`index_names`), including the inline PK of identity columns.
+- **Computed columns** (`virtualAs`/`storedAs` → `COMPUTED BY`) and **temporary tables** (`temporary()` → GTT).
+- **`uniqueIndex()`** (unique index without a constraint), **`COMMENT ON`**, real-constraint **`insertOrIgnore`**, automatic reconnect and introspection with `auto_increment`.
+- **Dates**: the `SerializesFirebirdDates` trait (and base model) stores `date` casts without the time component, avoiding Firebird's conversion error.
 
-- **Foreign keys criam um indice automaticamente** no Firebird, com o mesmo nome da constraint. Nao crie um `index()` extra para a coluna da FK (geraria indice duplicado).
-- CHECK constraints nao tem nomenclatura automatica no Laravel (nao existe `$table->check()` nativo); o unico CHECK emitido e o inline do `enum()`.
+> 📖 **Full feature documentation: [docs/funcionalidades.md](docs/funcionalidades.md)** (in Portuguese) — covers identifiers/case/quoting, pagination, dates, naming, computed columns, GTT, limitations and more.
 
-> Documentacao completa das funcionalidades em **[docs/funcionalidades.md](docs/funcionalidades.md)**.
+### Support open source
 
-## Recursos por versao do servidor
+This driver exists because the community shares its work openly. If it saved you time, consider giving back: ⭐ star the repo, 🐛 open issues/PRs, or 💜 **sponsor the development** at **[github.com/sponsors/bensonsbc](https://github.com/sponsors/bensonsbc)**. Any support helps keep the Firebird + PHP ecosystem healthy and sustainable.
 
-A versao do servidor e detectada automaticamente (ou fixada com `server_version`) e habilita recursos:
+---
 
-- **Firebird 3+** — colunas de auto incremento usam `GENERATED BY DEFAULT AS IDENTITY` (sem generator/trigger); `ALTER COLUMN SET/DROP NOT NULL` em `->change()`; `auto_increment` correto na introspeccao de colunas. Em servidores 2.5, o driver mantem o caminho legado de generator + trigger e altera a nulabilidade via tabela de sistema.
-- **Firebird 4+** — identificadores de ate 63 caracteres; `timestampTz()`, `timeTz()` e `dateTimeTz()` geram tipos `WITH TIME ZONE`.
-
-Nomes de indices, constraints, generators e triggers acima do limite de identificadores recebem sufixo hash para evitar colisoes silenciosas.
-
-## Paginacao
-
-Por padrao, o driver usa a sintaxe tradicional do Firebird:
-
-```sql
-select first 10 skip 20 * from CLIENTE
-```
-
-Para usar a sintaxe moderna, configure:
-
-```php
-'pagination_mode' => 'offset_fetch',
-```
-
-Isso gera SQL como:
-
-```sql
-select * from CLIENTE offset 20 rows fetch first 10 rows only
-```
-
-## Identificadores legados
-
-Com `quote_identifiers` desativado e `uppercase_identifiers` ativado, uma consulta como:
-
-```php
-DB::table('cliente')->where('clienteid', 1)->toSql();
-```
-
-gera SQL compativel com bases Firebird legadas:
-
-```sql
-select * from CLIENTE where CLIENTEID = ?
-```
-
-O valor padrao ainda e manter identificadores entre aspas, preservando o comportamento original do pacote.
-
-## Comportamentos especificos do Firebird
-
-- **`insertOrIgnore`** insere linha a linha dentro de uma transacao e ignora violacoes de qualquer constraint unica (o Firebird desfaz somente o statement que falhou). `insertOrIgnoreUsing` resolve os indices unicos da tabela e gera `NOT EXISTS` por indice; sem indice unico, compila um insert simples.
-- **`firstOrCreate`/`createOrFirst`** funcionam corretamente em condicao de corrida: violacoes de unique sao convertidas em `UniqueConstraintViolationException`.
-- **`truncate()`** emula `TRUNCATE` com `DELETE FROM` (o Firebird nao tem truncate) e reinicia generators descobertos por triggers e colunas identity.
-- **`upsert()`** compila para `MERGE` com fonte derivada tipada.
-- **`whereLike`** respeita a collation do Firebird. O driver nao emula case insensitive com `UPPER()`, para nao quebrar uso de indices nem substituir uma collation CI/AI escolhida pela aplicacao.
-- **Update/delete com joins** localizam as linhas alvo via `RDB$DB_KEY`.
-- **Listas `IN` com mais de 1499 itens** sao divididas em multiplos grupos `IN` automaticamente (servidores antes do Firebird 5 rejeitam listas maiores), o que mantem o eager loading do Eloquent funcionando com resultados grandes.
-- **Limites em relacoes eager (`->limit()` em `with()`)** compilam com `ROW_NUMBER()` no Firebird 3+; em servidores sem window functions o driver lanca uma excecao clara.
-
-## Datas: cast `date` vs `datetime`
-
-No dialect 3 o tipo `DATE` do Firebird **nao tem componente de hora**. O Laravel, porem, formata todo valor temporal com um unico formato de conexao (`Y-m-d H:i:s`) — inclusive colunas com cast `date`. Isso faz o Firebird recusar a gravacao com *conversion error from string* (o MySQL/Postgres aceitam e truncam sozinhos; o Firebird e estrito).
-
-Como o formato de gravacao do Laravel e global e nao distingue `date` de `datetime`, a forma idiomatica de resolver e na camada do model, usando o cast que voce **ja declara**. O pacote oferece duas formas:
-
-**1. Trait `SerializesFirebirdDates`** — aplique nos models que tem colunas `DATE`:
-
-```php
-use Benson\LaravelFirebird\Eloquent\Concerns\SerializesFirebirdDates;
-use Illuminate\Database\Eloquent\Model;
-
-class Pedido extends Model
-{
-    use SerializesFirebirdDates;
-
-    protected $casts = [
-        'data_emissao' => 'date',      // gravado como 2026-06-18
-        'criado_em'    => 'datetime',  // gravado como 2026-06-18 13:45:00
-    ];
-}
-```
-
-**2. Model base `Benson\LaravelFirebird\Eloquent\Model`** — ja inclui o trait; estenda-o em vez do model padrao:
-
-```php
-use Benson\LaravelFirebird\Eloquent\Model;
-
-class Pedido extends Model
-{
-    protected $casts = ['data_emissao' => 'date'];
-}
-```
-
-Com qualquer uma das opcoes voce so declara o cast normal (`date` / `immutable_date`); o trait grava esses atributos sem a parte de hora e mantem `datetime` com a hora. A leitura continua devolvendo instancias `Carbon` normalmente.
-
-Observacao: isso atua na camada Eloquent. Um `DB::table('...')->insert(['data' => $carbon])` cru (sem model) ainda usa o formato global do Laravel — nesse caso passe a data ja como string `Y-m-d`.
-
-## Limitacoes conhecidas
-
-- A conexao usa `PDO::ATTR_CASE_LOWER`: todos os nomes de coluna do resultset voltam em minusculas, inclusive aliases quotados (`select x as "userName"` retorna `username`).
-- `disableForeignKeyConstraints()`/`enableForeignKeyConstraints()` sao no-ops: o Firebird nao tem toggle de FK por conexao. `dropAllTables()` derruba as FKs antes das tabelas para resolver dependencias circulares.
-- Operacoes JSON (`whereJsonContains`, seletores `->`) nao sao suportadas pelo Firebird; colunas `json()` sao criadas como `BLOB SUB_TYPE TEXT`.
-- `Schema::rename()` (renomear tabela) nao e suportado pelo Firebird.
-- `lock(false)` (shared lock) e ignorado; apenas `lockForUpdate()` (`WITH LOCK`) tem efeito.
-- `orderByRandom()` ignora seed (`RAND()` do Firebird nao aceita semente).
-- Em `insertOrIgnoreUsing`, duplicatas dentro do proprio subquery de origem nao sao filtradas (o `NOT EXISTS` compara apenas com a tabela alvo).
-
-## Testes
-
-A suite usa Orchestra Testbench e precisa de um Firebird real para os testes de integracao:
+## Testes / Tests
 
 ```bash
-docker compose up -d        # sobe Firebird 5 (porta 3055) e Firebird 4 (porta 3054)
+docker compose up -d        # Firebird 5 (port 3055) and Firebird 4 (port 3054)
 DB_PORT=3055 vendor/bin/phpunit
 ```
 
-Para dialeto 1, exporte `DB_DIALECT=1` e aponte para um banco criado em dialeto 1.
+Para dialeto 1, exporte `DB_DIALECT=1` apontando para um banco em dialeto 1. / For dialect 1, export `DB_DIALECT=1` pointing at a dialect-1 database.
 
-O CI (GitHub Actions) roda a suite contra Firebird 3, 4 e 5 em PHP 8.3 e 8.4.
+O CI roda a suíte contra Firebird 3, 4 e 5 em PHP 8.3 e 8.4. / CI runs the suite against Firebird 3, 4 and 5 on PHP 8.3 and 8.4.
+
+## Créditos / Credits
+
+- **[Jacques van Zuydam](https://github.com/jacquestvanzuydam)** — autor original / original author.
+- **[Harry Gulliford](https://github.com/harrygulliford)** — mantenedor do fork-base, maior parte da implementação / maintainer of the base fork, bulk of the implementation.
+- **Contribuidores / contributors**: mariuz, Ricardo Seriani, Victor Vilella, Donny Kurnia, Felipi Franco, Johan Weultjes, Simon Rasmussen, fesoft, selmo47, Maitrepylos, entre outros / among others.
+- **Projeto Firebird**, extensão **`pdo_firebird`** e a **comunidade Laravel** / the Firebird project, the `pdo_firebird` extension and the Laravel community.
+
+Fork atual / current fork: **[`benson/laravel-firebird`](https://github.com/bensonsbc/laravel-firebird)** — Alexandre Benson Smith ([Thor Software](https://thorsoftware.com.br)).
+
+## Licença / License
+
+MIT — a mesma do projeto de origem / same as the upstream project.
