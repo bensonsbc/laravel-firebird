@@ -921,6 +921,24 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Format a value so that it can be used in "default" clauses.
+     *
+     * Booleans target the native BOOLEAN literal where supported; the legacy
+     * CHAR(1) representation keeps the framework's '1'/'0' default.
+     *
+     * @param  mixed  $value
+     * @return string
+     */
+    protected function getDefaultValue($value)
+    {
+        if (is_bool($value) && $this->connection->supportsBooleanType()) {
+            return $value ? 'TRUE' : 'FALSE';
+        }
+
+        return parent::getDefaultValue($value);
+    }
+
+    /**
      * Create the column definition for a char type.
      *
      * @param  \Illuminate\Support\Fluent  $column
@@ -1070,12 +1088,15 @@ class FirebirdGrammar extends Grammar
     /**
      * Create the column definition for a boolean type.
      *
+     * Servers without the native BOOLEAN type (Firebird 2.5, dialect 1) fall
+     * back to the legacy CHAR(1) representation.
+     *
      * @param  \Illuminate\Support\Fluent  $column
      * @return string
      */
     protected function typeBoolean(Fluent $column)
     {
-        return 'CHAR(1)';
+        return $this->connection->supportsBooleanType() ? 'BOOLEAN' : 'CHAR(1)';
     }
 
     /**

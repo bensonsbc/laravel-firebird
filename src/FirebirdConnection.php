@@ -99,6 +99,18 @@ class FirebirdConnection extends DatabaseConnection
     }
 
     /**
+     * Determine whether the connection can use the native BOOLEAN type
+     * (Firebird 3+, dialect 3).
+     *
+     * @return bool
+     */
+    public function supportsBooleanType(): bool
+    {
+        return (string) $this->getConfig('dialect') !== '1'
+            && $this->isServerVersionAtLeast('3.0');
+    }
+
+    /**
      * Determine whether ALTER COLUMN SET/DROP NOT NULL is available (Firebird 3+).
      *
      * @return bool

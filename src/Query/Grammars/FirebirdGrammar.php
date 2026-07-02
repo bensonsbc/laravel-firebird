@@ -918,7 +918,9 @@ class FirebirdGrammar extends Grammar
         }
 
         if (is_bool($value)) {
-            return 'cast(? as smallint)';
+            return $this->connection->supportsBooleanType()
+                ? 'cast(? as boolean)'
+                : 'cast(? as smallint)';
         }
 
         // Byte length over-allocates for multi-byte strings, which is safe.

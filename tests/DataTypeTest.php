@@ -66,6 +66,19 @@ class DataTypeTest extends TestCase
         $this->assertStringContainsString('2026-06-12', (string) $row->seen_at);
         $this->assertStringContainsString('13:45:30', (string) $row->seen_at);
         $this->assertSame('1', rtrim((string) $row->active));
+
+        $this->assertSame(
+            DB::connection()->supportsBooleanType() ? 'boolean' : 'char',
+            Schema::getColumnType('foo_types', 'active')
+        );
+
+        // PHP booleans round-trip on both the native BOOLEAN and the legacy
+        // CHAR(1) representation.
+        DB::table('foo_types')->where('id', 1)->update(['active' => false]);
+        $this->assertSame(0, (int) DB::table('foo_types')->where('id', 1)->value('active'));
+
+        DB::table('foo_types')->where('id', 1)->update(['active' => true]);
+        $this->assertSame(1, (int) DB::table('foo_types')->where('id', 1)->value('active'));
     }
 
     #[Test]

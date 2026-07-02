@@ -131,6 +131,34 @@ class SchemaGrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_uses_the_native_boolean_type_on_firebird_three_and_newer()
+    {
+        $modern = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $statements = $this->createTableSql($modern, 'foo_flags', function (Blueprint $table) {
+            $table->boolean('active')->default(true);
+        });
+
+        $this->assertStringContainsString('"active" BOOLEAN DEFAULT TRUE', $statements[0]);
+
+        $legacy = $this->makeConnection(['server_version' => '2.5.9']);
+
+        $statements = $this->createTableSql($legacy, 'foo_flags', function (Blueprint $table) {
+            $table->boolean('active')->default(true);
+        });
+
+        $this->assertStringContainsString("\"active\" CHAR(1) DEFAULT '1'", $statements[0]);
+
+        $dialectOne = $this->makeConnection(['server_version' => '5.0.3', 'dialect' => '1']);
+
+        $statements = $this->createTableSql($dialectOne, 'foo_flags', function (Blueprint $table) {
+            $table->boolean('active');
+        });
+
+        $this->assertStringContainsString('"active" CHAR(1)', $statements[0]);
+    }
+
+    #[Test]
     public function it_quotes_reserved_identifiers_in_ddl_even_when_quoting_is_disabled()
     {
         $connection = $this->makeConnection([

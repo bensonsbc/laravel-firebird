@@ -184,6 +184,35 @@ class GrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_casts_upsert_source_booleans_by_server_support()
+    {
+        $config = [
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ];
+
+        $modern = $this->makeConnection($config + ['server_version' => '5.0.3']);
+        $sql = $modern->getQueryGrammar()->compileUpsert(
+            $modern->table('cliente'),
+            [['clienteid' => 1, 'ativo' => true]],
+            ['clienteid'],
+            ['ativo']
+        );
+
+        $this->assertStringContainsString('cast(? as boolean) as ATIVO', $sql);
+
+        $legacy = $this->makeConnection($config + ['server_version' => '2.5.9']);
+        $sql = $legacy->getQueryGrammar()->compileUpsert(
+            $legacy->table('cliente'),
+            [['clienteid' => 1, 'ativo' => true]],
+            ['clienteid'],
+            ['ativo']
+        );
+
+        $this->assertStringContainsString('cast(? as smallint) as ATIVO', $sql);
+    }
+
+    #[Test]
     public function it_quotes_reserved_identifiers_even_when_identifier_quoting_is_disabled()
     {
         $connection = $this->makeConnection([

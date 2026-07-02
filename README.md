@@ -52,7 +52,7 @@ Configure a conexão em `config/database.php`:
 
 ### Destaques
 
-- **Recursos por versão**: identity columns e `ALTER COLUMN` de nulidade no Firebird 3+; tipos `WITH TIME ZONE` e identificadores de 63 caracteres no Firebird 4+.
+- **Recursos por versão**: identity columns, `BOOLEAN` nativo e `ALTER COLUMN` de nulidade no Firebird 3+; tipos `WITH TIME ZONE` e identificadores de 63 caracteres no Firebird 4+.
 - **Nomenclatura configurável** de constraints/índices (`index_names`), inclusive para a PK inline de colunas identity.
 - **Colunas computadas** (`virtualAs`/`storedAs` → `COMPUTED BY`) e **tabelas temporárias** (`temporary()` → GTT).
 - **`uniqueIndex()`** (índice único sem constraint), **`COMMENT ON`**, **`insertOrIgnore`** por constraint real, reconexão automática e introspecção com `auto_increment`.
@@ -108,7 +108,7 @@ Configure the connection in `config/database.php`:
 
 ### Highlights
 
-- **Version-aware features**: identity columns and nullability `ALTER COLUMN` on Firebird 3+; `WITH TIME ZONE` types and 63-char identifiers on Firebird 4+.
+- **Version-aware features**: identity columns, native `BOOLEAN` and nullability `ALTER COLUMN` on Firebird 3+; `WITH TIME ZONE` types and 63-char identifiers on Firebird 4+.
 - **Configurable naming** of constraints/indexes (`index_names`), including the inline PK of identity columns.
 - **Computed columns** (`virtualAs`/`storedAs` → `COMPUTED BY`) and **temporary tables** (`temporary()` → GTT).
 - **`uniqueIndex()`** (unique index without a constraint), **`COMMENT ON`**, real-constraint **`insertOrIgnore`**, automatic reconnect and introspection with `auto_increment`.
