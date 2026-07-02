@@ -184,6 +184,49 @@ class GrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_compiles_lateral_joins_on_firebird_four_and_newer()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+            'server_version' => '4.0.4',
+        ]);
+
+        $sql = $connection->table('users')
+            ->joinLateral(
+                $connection->table('orders')->whereColumn('orders.user_id', 'users.id')->limit(1),
+                'latest_order'
+            )
+            ->toSql();
+
+        $this->assertStringContainsString('join lateral', $sql);
+    }
+
+    #[Test]
+    public function it_rejects_lateral_joins_on_servers_without_lateral_support()
+    {
+        $connection = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('lateral joins');
+
+        $connection->table('users')
+            ->joinLateral(
+                $connection->table('orders')->whereColumn('orders.user_id', 'users.id')->limit(1),
+                'latest_order'
+            )
+            ->toSql();
+    }
+
+    #[Test]
+    public function it_compiles_a_thread_count_query()
+    {
+        $grammar = $this->makeConnection()->getQueryGrammar();
+
+        $this->assertStringContainsString('mon$attachments', $grammar->compileThreadCount());
+    }
+
+    #[Test]
     public function it_casts_upsert_source_booleans_by_server_support()
     {
         $config = [

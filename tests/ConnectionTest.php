@@ -98,6 +98,20 @@ class ConnectionTest extends TestCase
     }
 
     #[Test]
+    public function it_escapes_binary_values_as_hex_literals()
+    {
+        $connection = $this->makeOfflineConnection();
+
+        $this->assertSame("x'0d0a41'", $connection->escape("\x0d\x0a\x41", true));
+    }
+
+    #[Test]
+    public function it_counts_open_connections()
+    {
+        $this->assertGreaterThanOrEqual(1, DB::connection()->threadCount());
+    }
+
+    #[Test]
     public function it_gets_default_query_grammar()
     {
         $connection = DB::connection();

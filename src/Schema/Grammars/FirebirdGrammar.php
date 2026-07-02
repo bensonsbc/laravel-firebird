@@ -26,7 +26,7 @@ class FirebirdGrammar extends Grammar
      *
      * @var array
      */
-    protected $fluentCommands = ['Comment'];
+    protected $fluentCommands = ['AutoIncrementStartingValues', 'Comment'];
 
     /**
      * The columns available as serials.
@@ -592,6 +592,60 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Compile a rename index command.
+     *
+     * Firebird has no ALTER INDEX ... RENAME; failing loudly beats the silent
+     * no-op the framework falls back to when the method does not exist.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string
+     */
+    public function compileRenameIndex(Blueprint $blueprint, Fluent $command)
+    {
+        throw new \LogicException('This database driver does not support renaming indexes.');
+    }
+
+    /**
+     * Compile the auto-increment starting value for a column.
+     *
+     * Identity-capable servers restart the identity; the legacy path adjusts
+     * the generator, which the BEFORE INSERT trigger increments before use.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Illuminate\Support\Fluent  $command
+     * @return string|null
+     */
+    public function compileAutoIncrementStartingValues(Blueprint $blueprint, Fluent $command)
+    {
+        if (! $command->column->autoIncrement
+            || ! ($value = $command->column->get('startingValue', $command->column->get('from')))) {
+            return;
+        }
+
+        if ($this->connection->supportsIdentityColumns()) {
+            // Firebird 3 increments before use (RESTART WITH n yields n + 1);
+            // Firebird 4 changed RESTART WITH n to yield n itself.
+            $restart = $this->connection->isServerVersionAtLeast('4.0')
+                ? (int) $value
+                : (int) $value - 1;
+
+            return sprintf(
+                'ALTER TABLE %s ALTER %s RESTART WITH %d',
+                $this->wrapTable($blueprint),
+                $this->wrap($command->column->name),
+                $restart
+            );
+        }
+
+        return sprintf(
+            'set generator %s to %d',
+            $this->wrap($this->autoIncrementGeneratorName($blueprint, $command->column)),
+            (int) $value - 1
+        );
+    }
+
+    /**
      * Compile a primary key command.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
@@ -961,6 +1015,17 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Create the column definition for a tiny text type.
+     *
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function typeTinyText(Fluent $column)
+    {
+        return 'VARCHAR(255)';
+    }
+
+    /**
      * Create the column definition for a text type.
      *
      * @param  \Illuminate\Support\Fluent  $column
@@ -969,6 +1034,17 @@ class FirebirdGrammar extends Grammar
     protected function typeText(Fluent $column)
     {
         return 'BLOB SUB_TYPE TEXT';
+    }
+
+    /**
+     * Create the column definition for a year type.
+     *
+     * @param  \Illuminate\Support\Fluent  $column
+     * @return string
+     */
+    protected function typeYear(Fluent $column)
+    {
+        return 'INTEGER';
     }
 
     /**

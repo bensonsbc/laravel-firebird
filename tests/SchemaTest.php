@@ -607,6 +607,26 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_applies_auto_increment_starting_values()
+    {
+        Schema::dropIfExists('foo_starting');
+
+        try {
+            Schema::create('foo_starting', function (Blueprint $table) {
+                $table->increments('id')->from(100);
+                $table->string('name');
+            });
+
+            DB::table('foo_starting')->insert(['name' => 'first']);
+            DB::table('foo_starting')->insert(['name' => 'second']);
+
+            $this->assertSame([100, 101], DB::table('foo_starting')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all());
+        } finally {
+            Schema::dropIfExists('foo_starting');
+        }
+    }
+
+    #[Test]
     public function it_skips_redundant_change_statements()
     {
         Schema::dropIfExists('foo_change_skip');

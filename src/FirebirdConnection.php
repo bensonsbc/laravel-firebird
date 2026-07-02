@@ -131,6 +131,17 @@ class FirebirdConnection extends DatabaseConnection
     }
 
     /**
+     * Escape a binary value for safe SQL embedding.
+     *
+     * @param  string  $value
+     * @return string
+     */
+    protected function escapeBinary($value)
+    {
+        return "x'".bin2hex($value)."'";
+    }
+
+    /**
      * Determine if the given exception was caused by a lost connection.
      *
      * Adds the Firebird specific network failure messages on top of the

@@ -4,6 +4,7 @@ namespace Benson\LaravelFirebird\Tests;
 
 use Benson\LaravelFirebird\FirebirdConnection;
 use Illuminate\Database\Schema\Blueprint;
+use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
@@ -128,6 +129,65 @@ class SchemaGrammarTest extends TestCase
 
         $this->assertStringContainsString('"happened_at" TIMESTAMP', $statements[0]);
         $this->assertStringNotContainsString('WITH TIME ZONE', $statements[0]);
+    }
+
+    #[Test]
+    public function it_rejects_renaming_indexes()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $blueprint = new Blueprint($connection, 'foo_users', function (Blueprint $table) {
+            $table->renameIndex('foo_users_email_index', 'foo_users_email_ix');
+        });
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('renaming indexes');
+
+        $blueprint->toSql();
+    }
+
+    #[Test]
+    public function it_compiles_tiny_text_and_year_columns()
+    {
+        $connection = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $statements = $this->createTableSql($connection, 'foo_extra_types', function (Blueprint $table) {
+            $table->tinyText('note');
+            $table->year('birth_year');
+        });
+
+        $this->assertStringContainsString('"note" VARCHAR(255)', $statements[0]);
+        $this->assertStringContainsString('"birth_year" INTEGER', $statements[0]);
+    }
+
+    #[Test]
+    public function it_compiles_auto_increment_starting_values()
+    {
+        $modern = $this->makeConnection(['server_version' => '5.0.3']);
+
+        $statements = $this->createTableSql($modern, 'foo_seq', function (Blueprint $table) {
+            $table->id()->from(100);
+        });
+
+        $this->assertContains('ALTER TABLE "foo_seq" ALTER "id" RESTART WITH 100', $statements);
+
+        // Firebird 3 increments the stored value before use, so the restart
+        // value is offset to keep ->from(100) yielding 100 on every server.
+        $firebirdThree = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $statements = $this->createTableSql($firebirdThree, 'foo_seq', function (Blueprint $table) {
+            $table->id()->from(100);
+        });
+
+        $this->assertContains('ALTER TABLE "foo_seq" ALTER "id" RESTART WITH 99', $statements);
+
+        $legacy = $this->makeConnection(['server_version' => '2.5.9']);
+
+        $statements = $this->createTableSql($legacy, 'foo_seq', function (Blueprint $table) {
+            $table->increments('id')->startingValue(100);
+        });
+
+        $this->assertContains('set generator "foo_seq_id_gen" to 99', $statements);
     }
 
     #[Test]

@@ -653,13 +653,29 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile a "lateral join" clause.
      *
+     * Lateral derived tables require Firebird 4.
+     *
      * @param  \Illuminate\Database\Query\JoinLateralClause  $join
      * @param  string  $expression
      * @return string
      */
     public function compileJoinLateral(JoinLateralClause $join, string $expression): string
     {
+        if (! $this->connection->isServerVersionAtLeast('4.0')) {
+            throw new RuntimeException('This database engine version does not support lateral joins.');
+        }
+
         return trim("{$join->type} join lateral {$expression} on true");
+    }
+
+    /**
+     * Compile the query to get the number of open connections for a database.
+     *
+     * @return string
+     */
+    public function compileThreadCount()
+    {
+        return 'select count(*) from mon$attachments where mon$system_flag is null or mon$system_flag = 0';
     }
 
     /**
