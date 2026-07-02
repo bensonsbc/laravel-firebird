@@ -280,10 +280,13 @@ class SchemaTest extends TestCase
         try {
             // The computed expression is raw SQL, so it must reference columns
             // with the case/quoting the connection uses. Dialect 1 has no
-            // delimited identifiers (uppercase, unquoted).
+            // delimited identifiers (uppercase, unquoted). The explicit cast
+            // keeps the inferred type readable by older fbclient libraries:
+            // on Firebird 4+, INTEGER * DECIMAL infers a type that a 3.0
+            // client rejects with -204 Data type unknown.
             $expression = config('database.connections.firebird.uppercase_identifiers')
-                ? 'QTD * PRECO'
-                : '"qtd" * "preco"';
+                ? 'CAST(QTD * PRECO AS NUMERIC(12, 2))'
+                : 'cast("qtd" * "preco" as numeric(12, 2))';
 
             Schema::create('foo_computed', function (Blueprint $table) use ($expression) {
                 $table->integer('qtd');
