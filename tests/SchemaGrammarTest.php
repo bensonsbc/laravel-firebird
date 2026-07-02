@@ -131,6 +131,74 @@ class SchemaGrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_quotes_reserved_identifiers_in_ddl_even_when_quoting_is_disabled()
+    {
+        $connection = $this->makeConnection([
+            'server_version' => '3.0.10',
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $statements = $this->createTableSql($connection, 'cache', function (Blueprint $table) {
+            $table->string('key');
+            $table->text('value');
+        });
+
+        $this->assertStringContainsString('create table CACHE', $statements[0]);
+        $this->assertStringContainsString('"KEY" VARCHAR(255)', $statements[0]);
+        $this->assertStringContainsString('"VALUE" BLOB SUB_TYPE TEXT', $statements[0]);
+    }
+
+    #[Test]
+    public function it_passes_already_quoted_ddl_identifiers_through()
+    {
+        $connection = $this->makeConnection([
+            'server_version' => '3.0.10',
+            'uppercase_identifiers' => true,
+        ]);
+
+        $statements = $this->createTableSql($connection, 'foo_users', function (Blueprint $table) {
+            $table->string('"MixedCase"');
+        });
+
+        $this->assertStringContainsString('"MixedCase" VARCHAR(255)', $statements[0]);
+        $this->assertStringNotContainsString('""', $statements[0]);
+    }
+
+    #[Test]
+    public function it_escapes_single_quotes_in_drop_if_exists_statements()
+    {
+        $connection = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $blueprint = new Blueprint($connection, "foo'bar", function (Blueprint $table) {
+            $table->dropIfExists();
+        });
+
+        $this->assertStringContainsString(
+            "execute statement 'drop table \"foo''bar\"'",
+            $blueprint->toSql()[0]
+        );
+    }
+
+    #[Test]
+    public function it_emits_every_change_statement_when_the_current_definition_cannot_be_inspected()
+    {
+        $connection = $this->makeConnection(['server_version' => '3.0.10']);
+
+        $blueprint = new Blueprint($connection, 'foo_users', function (Blueprint $table) {
+            $table->integer('quantity')->default(5)->change();
+        });
+
+        $sql = $blueprint->toSql();
+
+        // Type, default, nullability, plus the comment reset that change()
+        // always emits for changed columns.
+        $this->assertCount(4, $sql);
+        $this->assertContains('ALTER TABLE "foo_users" ALTER "quantity" TYPE INTEGER', $sql);
+        $this->assertContains('ALTER TABLE "foo_users" ALTER "quantity" SET NOT NULL', $sql);
+    }
+
+    #[Test]
     public function it_changes_nullability_through_alter_column_on_firebird_three_and_newer()
     {
         $connection = $this->makeConnection(['server_version' => '3.0.10']);

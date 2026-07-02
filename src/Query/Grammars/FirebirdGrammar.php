@@ -2,6 +2,7 @@
 
 namespace Benson\LaravelFirebird\Query\Grammars;
 
+use Benson\LaravelFirebird\Concerns\WrapsIdentifiers;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Query\Grammars\Grammar;
@@ -13,16 +14,7 @@ use RuntimeException;
 
 class FirebirdGrammar extends Grammar
 {
-    /**
-     * Identifiers that are problematic enough to quote even in legacy mode.
-     *
-     * @var string[]
-     */
-    protected $reservedIdentifiers = [
-        'KEY',
-        'TIMESTAMP',
-        'VALUE',
-    ];
+    use WrapsIdentifiers;
 
     /**
      * The components that make up a select clause.
@@ -129,7 +121,7 @@ class FirebirdGrammar extends Grammar
             return $this->normalizeIdentifier($value);
         }
 
-        return '"'.str_replace('"', '""', $value).'"';
+        return $this->quoteIdentifier($value);
     }
 
     /**
@@ -150,55 +142,7 @@ class FirebirdGrammar extends Grammar
             return $value;
         }
 
-        return '"'.str_replace('"', '""', $value).'"';
-    }
-
-    /**
-     * Normalize an identifier segment for legacy Firebird schemas.
-     *
-     * @param  string  $value
-     * @return string
-     */
-    protected function normalizeIdentifier($value)
-    {
-        if (! $this->shouldUppercaseIdentifiers() || ! preg_match('/^[A-Za-z_][A-Za-z0-9_$]*$/', $value)) {
-            return $value;
-        }
-
-        return Str::upper($value);
-    }
-
-    /**
-     * Determine whether identifiers should be quoted.
-     *
-     * @return bool
-     */
-    protected function shouldQuoteIdentifiers()
-    {
-        return $this->connection->getConfig('quote_identifiers', true) !== false;
-    }
-
-    /**
-     * Determine whether unquoted identifiers should be uppercased.
-     *
-     * @return bool
-     */
-    protected function shouldUppercaseIdentifiers()
-    {
-        return $this->connection->getConfig('uppercase_identifiers', false) === true;
-    }
-
-    /**
-     * Determine whether a value is already explicitly quoted.
-     *
-     * @param  string  $value
-     * @return bool
-     */
-    protected function isAlreadyQuoted($value)
-    {
-        // Require a single fully quoted identifier; embedded quotes must be
-        // escaped so values like `"a" or "b"` are not passed through raw.
-        return preg_match('/^"(?:[^"]|"")*"$/', $value) === 1;
+        return $this->quoteIdentifier($value);
     }
 
     /**
@@ -212,17 +156,6 @@ class FirebirdGrammar extends Grammar
         // Quotes and statement separators are rejected so this passthrough
         // cannot smuggle arbitrary SQL through identifier wrapping.
         return preg_match('/^[A-Za-z_][A-Za-z0-9_$]*\s*\([^;\'"]*\)$/', $value) === 1;
-    }
-
-    /**
-     * Determine whether an identifier should be protected as reserved.
-     *
-     * @param  string  $value
-     * @return bool
-     */
-    protected function isReservedIdentifier($value)
-    {
-        return in_array(Str::upper($value), $this->reservedIdentifiers, true);
     }
 
     /**
@@ -364,6 +297,10 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile the lock into SQL.
      *
+     * Firebird only has exclusive row locks (WITH LOCK); a silent no-op for
+     * sharedLock() would drop the caller's concurrency guarantee, so it fails
+     * loudly instead.
+     *
      * @param  \Illuminate\Database\Query\Builder  $query
      * @param  bool|string  $value
      * @return string
@@ -374,7 +311,11 @@ class FirebirdGrammar extends Grammar
             return $value;
         }
 
-        return $value === true ? 'for update with lock' : '';
+        if ($value === false) {
+            throw new RuntimeException('Firebird does not support shared locks. Use lockForUpdate() instead.');
+        }
+
+        return 'for update with lock';
     }
 
     /**
@@ -896,7 +837,7 @@ class FirebirdGrammar extends Grammar
      */
     public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update)
     {
-        $columns = array_keys(array_first($values));
+        $columns = array_keys(Arr::first($values));
         $columnList = $this->columnize($columns);
         $table = $this->wrapTable($query->from);
         $source = $this->compileUpsertSource($values, $columns);
@@ -980,8 +921,13 @@ class FirebirdGrammar extends Grammar
             return 'cast(? as smallint)';
         }
 
+        // Byte length over-allocates for multi-byte strings, which is safe.
+        // Values beyond UTF8's varchar limit (8191 chars) fall back to a blob.
         $length = max(1, strlen((string) $value));
-        $length = min($length, 8191);
+
+        if ($length > 8191) {
+            return 'cast(? as blob sub_type text)';
+        }
 
         return sprintf('cast(? as varchar(%d))', $length);
     }

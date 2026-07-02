@@ -151,6 +151,39 @@ class GrammarTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_shared_locks()
+    {
+        $connection = $this->makeConnection();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('shared locks');
+
+        $connection->table('cliente')->sharedLock()->toSql();
+    }
+
+    #[Test]
+    public function it_casts_oversized_upsert_source_strings_as_blobs()
+    {
+        $connection = $this->makeConnection([
+            'quote_identifiers' => false,
+            'uppercase_identifiers' => true,
+        ]);
+
+        $grammar = $connection->getQueryGrammar();
+        $query = $connection->table('cliente');
+
+        $sql = $grammar->compileUpsert($query, [
+            [
+                'clienteid' => 1,
+                'nome' => str_repeat('a', 9000),
+            ],
+        ], ['clienteid'], ['nome']);
+
+        $this->assertStringContainsString('cast(? as blob sub_type text) as NOME', $sql);
+        $this->assertStringNotContainsString('varchar(9000)', $sql);
+    }
+
+    #[Test]
     public function it_quotes_reserved_identifiers_even_when_identifier_quoting_is_disabled()
     {
         $connection = $this->makeConnection([

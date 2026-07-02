@@ -604,6 +604,38 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_skips_redundant_change_statements()
+    {
+        Schema::dropIfExists('foo_change_skip');
+
+        try {
+            Schema::create('foo_change_skip', function (Blueprint $table) {
+                $table->integer('id');
+                $table->integer('quantity')->default(1);
+            });
+
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+
+            Schema::table('foo_change_skip', function (Blueprint $table) {
+                $table->integer('quantity')->default(5)->change();
+            });
+
+            $ddl = array_values(array_filter(
+                array_column(DB::getQueryLog(), 'query'),
+                fn ($query) => stripos($query, 'alter table') === 0 || stripos($query, 'update rdb$') === 0
+            ));
+
+            // Same type and unchanged nullability: only the default changes.
+            $this->assertCount(1, $ddl);
+            $this->assertStringContainsStringIgnoringCase('set default', $ddl[0]);
+        } finally {
+            DB::disableQueryLog();
+            Schema::dropIfExists('foo_change_skip');
+        }
+    }
+
+    #[Test]
     public function it_throws_an_exception_for_renaming_tables()
     {
         Schema::dropIfExists('foo_rename_table');

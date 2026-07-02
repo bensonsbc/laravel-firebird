@@ -40,8 +40,16 @@ class Builder extends BaseBuilder
         $this->applyBeforeQueryCallbacks();
 
         return $this->connection->transaction(function () use ($values) {
+            // The keys are sorted above, so uniform batches compile one insert
+            // statement and reuse it for every row.
+            $signature = null;
+            $sql = null;
+
             foreach ($values as $record) {
-                $sql = $this->grammar->compileInsert($this, $record);
+                if (($keys = array_keys($record)) !== $signature) {
+                    $signature = $keys;
+                    $sql = $this->grammar->compileInsert($this, $record);
+                }
 
                 $this->connection->insert($sql, $this->cleanBindings(array_values($record)));
             }

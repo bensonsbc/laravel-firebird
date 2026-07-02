@@ -342,7 +342,8 @@ Schema::create('calc_temp', function (Blueprint $table) {
 - **`insertOrIgnore`** insere linha a linha em transação e ignora violações de qualquer constraint única. `insertOrIgnoreUsing` resolve os índices únicos da tabela e gera `NOT EXISTS` por índice.
 - **`firstOrCreate`/`createOrFirst`** funcionam em condição de corrida (violações de unique viram `UniqueConstraintViolationException`).
 - **`truncate()`** emula `TRUNCATE` com `DELETE FROM` e reinicia generators e colunas identity.
-- **`upsert()`** compila para `MERGE`.
+- **`upsert()`** compila para `MERGE`. Os valores da fonte derivada recebem `CAST` tipado (o Firebird não infere tipos de parâmetros em derived tables); strings acima de 8191 caracteres (limite de `VARCHAR` em UTF8) usam `CAST(? AS BLOB SUB_TYPE TEXT)`.
+- **`->change()`** inspeciona a definição atual da coluna e omite `ALTER TYPE`/nulidade redundantes — uma migração que só altera o `default` não dispara `ALTER TYPE` (que o Firebird rejeita para várias conversões). Sem conexão inspecionável, todos os statements são emitidos (semântica padrão do Laravel de redefinição completa).
 - **Update/delete com joins** localizam as linhas alvo via `RDB$DB_KEY`.
 - **Listas `IN` com mais de 1499 itens** são divididas em múltiplos grupos `IN` automaticamente.
 - **`whereLike`** respeita a collation do Firebird (não força `UPPER()`, para não quebrar índices/collation CI).
@@ -357,7 +358,9 @@ Schema::create('calc_temp', function (Blueprint $table) {
 - `disableForeignKeyConstraints()`/`enableForeignKeyConstraints()` são no-ops (Firebird não tem toggle de FK por conexão). `dropAllTables()` derruba as FKs antes das tabelas.
 - Operações JSON (`whereJsonContains`, seletores `->`) não são suportadas; colunas `json()` viram `BLOB SUB_TYPE TEXT`.
 - `Schema::rename()` (renomear tabela) não é suportado pelo Firebird.
-- `lock(false)` (shared lock) é ignorado; apenas `lockForUpdate()` tem efeito.
+- `sharedLock()`/`lock(false)` lança `RuntimeException`: o Firebird só tem lock exclusivo de linha (`WITH LOCK`); ignorar silenciosamente removeria a garantia de concorrência pedida. Use `lockForUpdate()`.
+- Em servidores 2.5, tornar uma coluna `NOT NULL` via `->change()` escreve o flag direto na tabela de sistema e **não valida as linhas existentes**: NULLs já gravados permanecem e só aparecem num ciclo de backup/restore. Garanta que a coluna não tem NULLs antes de alterá-la.
+- `boolean()` gera `CHAR(1)` mesmo em Firebird 3+ (que tem `BOOLEAN` nativo), mantendo compatibilidade com bases existentes criadas pelo driver e com o bind de booleanos do Laravel em todas as versões suportadas.
 - `orderByRandom()` ignora seed.
 - CHECK constraints não têm nomenclatura automática (o Laravel não tem `$table->check()` nativo); o único CHECK emitido é o inline do `enum()`.
 - O cliente `fbclient` deve ser compatível com o servidor: um cliente 3.0 contra servidor 4+/5 falha (`-204 Data type unknown`) ao ler tipos novos (`TIMESTAMP WITH TIME ZONE`, `DECFLOAT`, `INT128`) ou `CURRENT_TIMESTAMP` cru.

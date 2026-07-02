@@ -3,13 +3,16 @@
 namespace Benson\LaravelFirebird\Schema\Grammars;
 
 use Benson\LaravelFirebird\Concerns\NormalizesObjectNames;
+use Benson\LaravelFirebird\Concerns\WrapsIdentifiers;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Grammars\Grammar;
 use Illuminate\Support\Fluent;
+use Throwable;
 
 class FirebirdGrammar extends Grammar
 {
     use NormalizesObjectNames;
+    use WrapsIdentifiers;
 
     /**
      * The possible column modifiers.
@@ -35,6 +38,9 @@ class FirebirdGrammar extends Grammar
     /**
      * Wrap a single string in keyword identifiers.
      *
+     * Mirrors the query grammar rules so DML and DDL agree on quoting, case
+     * normalization, already-quoted passthrough and reserved identifiers.
+     *
      * @param  string  $value
      * @return string
      */
@@ -44,15 +50,17 @@ class FirebirdGrammar extends Grammar
             return $value;
         }
 
-        if ($this->connection->getConfig('uppercase_identifiers', false) === true) {
-            $value = strtoupper($value);
-        }
-
-        if ($this->connection->getConfig('quote_identifiers', true) === false) {
+        if ($this->isAlreadyQuoted($value)) {
             return $value;
         }
 
-        return '"'.str_replace('"', '""', $value).'"';
+        $value = $this->normalizeIdentifier($value);
+
+        if (! $this->shouldQuoteIdentifiers() && ! $this->isReservedIdentifier($value)) {
+            return $value;
+        }
+
+        return $this->quoteIdentifier($value);
     }
 
     /**
@@ -316,9 +324,9 @@ class FirebirdGrammar extends Grammar
     {
         return sprintf(
             'execute block as begin if (exists(select 1 from rdb$relations where rdb$relation_name = %s and rdb$relation_type = 0 and '
-            .'(rdb$system_flag is null or rdb$system_flag = 0))) then execute statement \'drop table %s\'; end',
+            .'(rdb$system_flag is null or rdb$system_flag = 0))) then execute statement %s; end',
             $this->quoteString($this->normalizeObjectName($blueprint->getTable())),
-            $this->wrapTable($blueprint)
+            $this->quoteString('drop table '.$this->wrapTable($blueprint))
         );
     }
 
@@ -473,19 +481,31 @@ class FirebirdGrammar extends Grammar
     /**
      * Compile a change column command.
      *
+     * Firebird's ALTER TYPE rejects several conversions, so the current
+     * definition is inspected and redundant TYPE and nullability statements
+     * are skipped (e.g. a change() that only sets a new default). When the
+     * definition cannot be inspected (offline compilation, no connection),
+     * every statement is emitted, matching Laravel's full-redefinition
+     * semantics.
+     *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
      * @param  \Illuminate\Support\Fluent  $command
-     * @return string
+     * @return list<string>
      */
     public function compileChange(Blueprint $blueprint, Fluent $command)
     {
         $column = $command->column;
         $table = $this->wrapTable($blueprint);
         $name = $this->wrap($column->name);
+        $type = $this->getType($column);
 
-        $statements = [
-            sprintf('ALTER TABLE %s ALTER %s TYPE %s', $table, $name, $this->getType($column)),
-        ];
+        $current = $this->currentColumnDefinition($blueprint, $column->name);
+
+        $statements = [];
+
+        if (is_null($current) || strcasecmp($current['type'], $type) !== 0) {
+            $statements[] = sprintf('ALTER TABLE %s ALTER %s TYPE %s', $table, $name, $type);
+        }
 
         if (! is_null($column->default)) {
             $statements[] = sprintf(
@@ -496,16 +516,45 @@ class FirebirdGrammar extends Grammar
             );
         }
 
-        $statements[] = $this->compileChangeNullability($blueprint, $column);
+        if (is_null($current) || $current['nullable'] !== (bool) $column->nullable) {
+            $statements[] = $this->compileChangeNullability($blueprint, $column);
+        }
 
         return $statements;
+    }
+
+    /**
+     * Look up the current definition of a column being changed.
+     *
+     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  string  $name
+     * @return array{name: string, type: string, nullable: bool}|null
+     */
+    protected function currentColumnDefinition(Blueprint $blueprint, $name)
+    {
+        try {
+            $columns = $this->connection->getSchemaBuilder()->getColumns($blueprint->getTable());
+        } catch (Throwable) {
+            return null;
+        }
+
+        foreach ($columns as $column) {
+            if (strcasecmp($column['name'], $name) === 0) {
+                return $column;
+            }
+        }
+
+        return null;
     }
 
     /**
      * Compile the nullability change for a column.
      *
      * Servers older than Firebird 3 have no ALTER COLUMN SET/DROP NOT NULL,
-     * so the null flag is toggled directly on the system table there.
+     * so the null flag is toggled directly on the system table there. Unlike
+     * Firebird 3's SET NOT NULL, that direct write does not validate existing
+     * rows: NULLs already stored remain and only surface on a later
+     * backup/restore cycle.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
      * @param  \Illuminate\Support\Fluent  $column
@@ -703,6 +752,25 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Quote the given string literal, escaping embedded quotes.
+     *
+     * The base grammar does not escape single quotes, which would break (or
+     * smuggle SQL through) enum CHECK values, comments and the metadata
+     * lookups embedded in EXECUTE BLOCK statements.
+     *
+     * @param  string|array  $value
+     * @return string
+     */
+    public function quoteString($value)
+    {
+        if (is_array($value)) {
+            return implode(', ', array_map([$this, __FUNCTION__], $value));
+        }
+
+        return "'".str_replace("'", "''", $value)."'";
+    }
+
+    /**
      * Compile a column comment command.
      *
      * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
@@ -716,7 +784,7 @@ class FirebirdGrammar extends Grammar
                 'comment on column %s.%s is %s',
                 $this->wrapTable($blueprint),
                 $this->wrap($command->column->name),
-                is_null($comment) ? 'NULL' : $this->quoteCommentString($comment)
+                is_null($comment) ? 'NULL' : $this->quoteString($comment)
             );
         }
     }
@@ -733,19 +801,8 @@ class FirebirdGrammar extends Grammar
         return sprintf(
             'comment on table %s is %s',
             $this->wrapTable($blueprint),
-            $this->quoteCommentString($command->comment)
+            $this->quoteString($command->comment)
         );
-    }
-
-    /**
-     * Quote a comment string, escaping embedded quotes.
-     *
-     * @param  string  $value
-     * @return string
-     */
-    protected function quoteCommentString($value)
-    {
-        return "'".str_replace("'", "''", $value)."'";
     }
 
     /**
