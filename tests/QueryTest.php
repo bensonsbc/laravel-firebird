@@ -1506,7 +1506,10 @@ class QueryTest extends TestCase
         // Check the starting id is the lowest id.
         $this->assertEquals($startingId, $users->min('id'));
 
+        // SKIP without ORDER BY follows the storage order, which Firebird does
+        // not guarantee, so the id assertions need an explicit order.
         $results = DB::table('users')
+            ->orderBy('id')
             ->offset($offset = 3)
             ->get();
 
@@ -1524,10 +1527,10 @@ class QueryTest extends TestCase
     {
         User::factory()->count(10)->create();
 
-        $startingId = DB::table('users')
-            ->value('id');
+        $startingId = DB::table('users')->min('id');
 
         $results = DB::table('users')
+            ->orderBy('id')
             ->limit($limit = 3)
             ->offset($offset = 3)
             ->get();
@@ -1546,10 +1549,10 @@ class QueryTest extends TestCase
     {
         User::factory()->count(10)->create();
 
-        $startingId = DB::table('users')
-            ->value('id');
+        $startingId = DB::table('users')->min('id');
 
         $results = DB::table('users')
+            ->orderBy('id')
             ->limit($limit = 3)
             ->get();
 
