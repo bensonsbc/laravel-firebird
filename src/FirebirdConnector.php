@@ -23,7 +23,14 @@ class FirebirdConnector extends Connector implements ConnectorInterface
 
         $connection = $this->createConnection($dsn, $config, $options);
 
-        $connection->setAttribute(PDO::ATTR_CASE, PDO::CASE_LOWER);
+        // Column-name case: 'natural' (Firebird default, uppercase for unquoted
+        // identifiers — matches upstream behaviour), 'lower' or 'upper'.
+        $case = match ($config['column_case'] ?? 'natural') {
+            'lower' => PDO::CASE_LOWER,
+            'upper' => PDO::CASE_UPPER,
+            default => PDO::CASE_NATURAL,
+        };
+        $connection->setAttribute(PDO::ATTR_CASE, $case);
 
         return $connection;
     }
