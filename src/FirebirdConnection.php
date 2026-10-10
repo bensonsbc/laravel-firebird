@@ -325,10 +325,50 @@ class FirebirdConnection extends DatabaseConnection
      */
     public function transaction(Closure $callback, $attempts = 1)
     {
+        // Same flow as Illuminate\Database\Concerns\ManagesTransactions::transaction(), with one change:
+        // autocommit is turned back on right after the outermost commit, BEFORE the after-commit
+        // callbacks run (DB::afterCommit, queued jobs/events "after commit"). Otherwise the callbacks
+        // run with no transaction and autocommit off, and any statement fails with
+        // "-901 invalid transaction handle (expecting explicit transaction start)".
+        $autocommitRestored = false;
+
         try {
-            return parent::transaction($callback, $attempts);
+            for ($currentAttempt = 1; $currentAttempt <= $attempts; $currentAttempt++) {
+                $this->beginTransaction();
+
+                try {
+                    $callbackResult = $callback($this);
+                } catch (Throwable $e) {
+                    $this->handleTransactionException($e, $currentAttempt, $attempts);
+
+                    continue;
+                }
+
+                $levelBeingCommitted = $this->transactions;
+
+                try {
+                    if ($this->transactions === 1) {
+                        $this->fireConnectionEvent('committing');
+                        $this->getPdo()->commit();
+                        $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
+                        $autocommitRestored = true;
+                    }
+
+                    $this->transactions = max(0, $this->transactions - 1);
+                } catch (Throwable $e) {
+                    $this->handleCommitTransactionException($e, $currentAttempt, $attempts);
+
+                    continue;
+                }
+
+                $this->transactionsManager?->commit($this->getName(), $levelBeingCommitted, $this->transactions);
+
+                $this->fireConnectionEvent('committed');
+
+                return $callbackResult;
+            }
         } finally {
-            if ($this->transactionLevel() === 0) {
+            if ($this->transactionLevel() === 0 && ! $autocommitRestored) {
                 $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
             }
         }
