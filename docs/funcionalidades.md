@@ -354,6 +354,8 @@ Schema::create('calc_temp', function (Blueprint $table) {
 - **`db:show` / `db:monitor`** informam conexões abertas via `MON$ATTACHMENTS`.
 - **Bind de inteiros em colunas `DECIMAL`/`NUMERIC` escaladas.** O `pdo_firebird` aplica escala errada quando um inteiro é vinculado com `PDO::PARAM_INT` (ex.: `40` vira `0.40` numa `DECIMAL(5,2)`). O driver sobrescreve `bindValues()` para vincular inteiros como string (`PARAM_STR`), que o Firebird converte com a escala correta. Vale para qualquer coluna; ints normais, `where` e booleanos continuam corretos.
 
+- **Transações e autocommit.** O `pdo_firebird` em autocommit grava cada comando na hora (um rollback não desfaria nada); por isso o driver desliga o autocommit ao abrir a transação e religa quando a transação de fora termina (commit ou rollback). No `DB::transaction(fn …)`, o autocommit volta **logo após o commit**, antes dos callbacks "depois do commit" (`DB::afterCommit`, jobs/eventos com `afterCommit`) — antes da v4.0.2 ele só voltava depois deles, e qualquer comando num callback falhava com `-901 invalid transaction handle (expecting explicit transaction start)`. Savepoints (transações aninhadas), rollback e a repetição em conflito (`DB::transaction($fn, $tentativas)`) seguem como antes — cobertos em `tests/TransactionTest.php`, conferindo por uma segunda conexão o que foi de fato gravado.
+
 ---
 
 ## Limitações conhecidas

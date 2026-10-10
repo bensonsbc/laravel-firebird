@@ -3,6 +3,7 @@
 namespace Benson\LaravelFirebird\Tests;
 
 use Illuminate\Database\QueryException;
+use PDOException;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -181,6 +182,124 @@ class TransactionTest extends TestCase
         ]);
     }
 
+    #[Test]
+    public function it_runs_after_commit_callbacks_that_write_to_the_database()
+    {
+        DB::transaction(function () {
+            DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 601, 'EMAIL' => 'after-commit-1@example.com']));
+            DB::afterCommit(fn () => DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 602, 'EMAIL' => 'after-commit-2@example.com'])));
+        });
+
+        $this->assertSame(0, DB::connection()->transactionLevel());
+        $this->assertSame([601, 602], $this->idsGravados());
+    }
+
+    #[Test]
+    public function it_runs_after_commit_callbacks_of_a_nested_transaction_after_the_outer_commit()
+    {
+        DB::transaction(function () {
+            DB::transaction(function () {
+                DB::afterCommit(fn () => DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 612, 'EMAIL' => 'nested-after-commit@example.com'])));
+            });
+            $this->assertSame([], $this->idsGravados()); // ainda não: espera o commit da transação de fora
+            DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 611, 'EMAIL' => 'outer@example.com']));
+        });
+
+        $this->assertSame([611, 612], $this->idsGravados());
+    }
+
+    #[Test]
+    public function it_discards_after_commit_callbacks_when_the_transaction_rolls_back()
+    {
+        try {
+            DB::transaction(function () {
+                DB::afterCommit(fn () => DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 622, 'EMAIL' => 'discarded@example.com'])));
+                throw new RuntimeException('Force rollback.');
+            });
+        } catch (RuntimeException) {
+        }
+        DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 623, 'EMAIL' => 'standalone@example.com']));
+
+        $this->assertSame([623], $this->idsGravados());
+    }
+
+    #[Test]
+    public function it_rolls_back_only_the_nested_transaction()
+    {
+        DB::transaction(function () {
+            DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 631, 'EMAIL' => 'kept@example.com']));
+            try {
+                DB::transaction(function () {
+                    DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 632, 'EMAIL' => 'savepoint@example.com']));
+                    throw new RuntimeException('Force savepoint rollback.');
+                });
+            } catch (RuntimeException) {
+            }
+        });
+
+        $this->assertSame([631], $this->idsGravados());
+    }
+
+    #[Test]
+    public function it_rolls_back_the_nested_work_when_the_outer_transaction_fails()
+    {
+        try {
+            DB::transaction(function () {
+                DB::transaction(fn () => DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 641, 'EMAIL' => 'nested-committed@example.com'])));
+                throw new RuntimeException('Force outer rollback.');
+            });
+        } catch (RuntimeException) {
+        }
+
+        $this->assertSame([], $this->idsGravados());
+        $this->assertSame(0, DB::connection()->transactionLevel());
+    }
+
+    #[Test]
+    public function it_keeps_rolling_back_after_a_commit_and_standalone_statements_persist()
+    {
+        DB::transaction(fn () => DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 651, 'EMAIL' => 'first@example.com'])));
+        DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 652, 'EMAIL' => 'autocommit@example.com']));
+        try {
+            DB::transaction(function () {
+                DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 653, 'EMAIL' => 'must-roll-back@example.com']));
+                throw new RuntimeException('Force rollback.');
+            });
+        } catch (RuntimeException) {
+        }
+
+        $this->assertSame([651, 652], $this->idsGravados());
+    }
+
+    #[Test]
+    public function it_retries_the_transaction_after_a_concurrency_conflict()
+    {
+        $tentativas = 0;
+        DB::transaction(function () use (&$tentativas) {
+            $tentativas++;
+            DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 660 + $tentativas, 'EMAIL' => "attempt-{$tentativas}@example.com"]));
+            if ($tentativas === 1) {
+                // o conflito que o Firebird devolve (-913, SQLSTATE 40001): o Laravel repete a transação
+                throw new class('update conflicts with concurrent update') extends PDOException
+                {
+                    protected $code = '40001';
+                };
+            }
+        }, 3);
+
+        $this->assertSame(2, $tentativas);
+        $this->assertSame([662], $this->idsGravados()); // a 1ª tentativa foi desfeita
+    }
+
+    /** IDs gravados de verdade, vistos por OUTRA conexão (a mesma conexão enxerga o que ainda não foi gravado). */
+    private function idsGravados(): array
+    {
+        config()->set('database.connections.firebird_outra', config('database.connections.firebird'));
+        DB::purge('firebird_outra');
+
+        return array_map('intval', DB::connection('firebird_outra')->table('TX_USERS')->orderBy('ID')->pluck('ID')->all());
+    }
+
     protected function tearDown(): void
     {
         if (! $this->databaseAvailable) {
@@ -194,6 +313,7 @@ class TransactionTest extends TestCase
                 DB::connection()->rollBack();
             }
         } finally {
+            DB::purge('firebird_outra');
             $this->dropTransactionTable();
 
             parent::tearDown();
