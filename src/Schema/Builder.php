@@ -54,11 +54,14 @@ class Builder extends BaseBuilder
         foreach ($tables as $table) {
             $generators = array_merge($generators, $this->autoIncrementGeneratorsForTable($table));
 
-            foreach ($this->getForeignKeys($table) as $foreignKey) {
+            // getForeignKeys() lowercases constraint names through the
+            // processor, which would re-quote a legacy uppercase constraint
+            // as a non-existent lowercase identifier on DROP CONSTRAINT.
+            foreach ($this->getRawForeignKeyNames($table) as $foreignKey) {
                 $this->connection->statement(sprintf(
                     'ALTER TABLE %s DROP CONSTRAINT %s',
                     $this->grammar->wrapTable($table),
-                    $this->grammar->wrap($foreignKey['name']),
+                    $this->grammar->wrap($foreignKey),
                 ));
             }
         }
@@ -144,6 +147,24 @@ class Builder extends BaseBuilder
 
             return $relation['name'] ?? $relation['NAME'] ?? null;
         }, $relations)));
+    }
+
+    /**
+     * Get a table's foreign key constraint names from the catalog preserving
+     * their real case (getForeignKeys() lowercases them).
+     *
+     * @param  string  $table  The table name with its real catalog case.
+     * @return list<string>
+     */
+    protected function getRawForeignKeyNames($table)
+    {
+        $foreignKeys = $this->connection->select(
+            $this->grammar->compileForeignKeys(null, $table)
+        );
+
+        return array_values(array_filter(array_map(function ($foreignKey) {
+            return array_change_key_case((array) $foreignKey, CASE_LOWER)['name'] ?? null;
+        }, $foreignKeys)));
     }
 
     /**

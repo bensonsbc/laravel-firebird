@@ -154,6 +154,53 @@ class DropAllTablesTest extends TestCase
         }
     }
 
+    #[Test]
+    #[RunInSeparateProcess]
+    public function it_drops_foreign_keys_regardless_of_constraint_name_case()
+    {
+        // getForeignKeys() lowercases constraint names, so a legacy constraint
+        // created without quotes (stored uppercase) or a quoted mixed-case one
+        // can only be dropped through its real catalog name. Dialect 1 has no
+        // delimited identifiers, so only the uppercase case exists there.
+        $quotesIdentifiers = (string) DB::connection()->getConfig('dialect') !== '1';
+
+        try {
+            DB::statement('RECREATE TABLE FOO_FK_UPPER_PARENT (ID INTEGER NOT NULL PRIMARY KEY)');
+            DB::statement('RECREATE TABLE FOO_FK_UPPER_CHILD (ID INTEGER NOT NULL, PID INTEGER, '
+                .'CONSTRAINT FK_FOO_FK_UPPER_CHILD FOREIGN KEY (PID) REFERENCES FOO_FK_UPPER_PARENT (ID))');
+
+            if ($quotesIdentifiers) {
+                DB::statement('RECREATE TABLE FOO_FK_MIXED_PARENT (ID INTEGER NOT NULL PRIMARY KEY)');
+                DB::statement('RECREATE TABLE FOO_FK_MIXED_CHILD (ID INTEGER NOT NULL, PID INTEGER, '
+                    .'CONSTRAINT "Fk_Foo_Fk_Mixed_Child" FOREIGN KEY (PID) REFERENCES FOO_FK_MIXED_PARENT (ID))');
+            }
+
+            Schema::dropAllTables();
+
+            foreach (['FOO_FK_UPPER_PARENT', 'FOO_FK_UPPER_CHILD', 'FOO_FK_MIXED_PARENT', 'FOO_FK_MIXED_CHILD'] as $table) {
+                $this->assertFalse($this->relationExists($table), "expected {$table} to be dropped");
+            }
+        } finally {
+            DB::disconnect();
+
+            foreach (['FOO_FK_UPPER_CHILD', 'FOO_FK_UPPER_PARENT', 'FOO_FK_MIXED_CHILD', 'FOO_FK_MIXED_PARENT'] as $table) {
+                try {
+                    DB::statement('DROP TABLE '.$table);
+                } catch (QueryException) {
+                    //
+                }
+            }
+
+            $this->dropTables();
+            $this->dropGenerators();
+            $this->createTables();
+            $this->dropProcedures();
+            $this->createProcedures();
+
+            MigrationState::$migrated = true;
+        }
+    }
+
     protected function relationExists($name)
     {
         return (bool) DB::selectOne(
