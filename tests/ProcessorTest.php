@@ -85,4 +85,62 @@ class ProcessorTest extends TestCase
 
         $this->assertSame(123, $id);
     }
+
+    #[Test]
+    public function it_processes_metadata_rows_with_uppercase_keys()
+    {
+        // Dialect 1 cannot quote the metadata aliases, so with the natural
+        // column case Firebird returns them in uppercase.
+        $processor = new FirebirdProcessor;
+
+        $columns = $processor->processColumns([
+            (object) [
+                'NAME' => 'ID',
+                'FIELD_TYPE' => 8,
+                'FIELD_SUB_TYPE' => 0,
+                'FIELD_PRECISION' => null,
+                'FIELD_SCALE' => 0,
+                'FIELD_LENGTH' => 4,
+                'NULL_FLAG' => 1,
+                'DEFAULT_SOURCE' => null,
+                'IDENTITY_TYPE' => null,
+                'COMMENT' => null,
+            ],
+        ]);
+
+        $this->assertSame('id', $columns[0]['name']);
+        $this->assertFalse($columns[0]['nullable']);
+
+        $indexes = $processor->processIndexes([
+            (object) ['NAME' => 'PK_USERS', 'COLUMNS' => 'ID', 'IS_UNIQUE' => 1, 'IS_PRIMARY' => 1],
+        ]);
+
+        $this->assertSame('pk_users', $indexes[0]['name']);
+        $this->assertSame(['id'], $indexes[0]['columns']);
+        $this->assertTrue($indexes[0]['unique']);
+        $this->assertTrue($indexes[0]['primary']);
+
+        $foreignKeys = $processor->processForeignKeys([
+            (object) [
+                'NAME' => 'FK_ORDERS_USERS',
+                'COLUMNS' => 'USER_ID',
+                'FOREIGN_TABLE' => 'USERS',
+                'FOREIGN_COLUMNS' => 'ID',
+                'ON_UPDATE' => 'RESTRICT',
+                'ON_DELETE' => 'CASCADE',
+            ],
+        ]);
+
+        $this->assertSame('fk_orders_users', $foreignKeys[0]['name']);
+        $this->assertSame('users', $foreignKeys[0]['foreign_table']);
+        $this->assertSame('cascade', $foreignKeys[0]['on_delete']);
+
+        $tables = $processor->processTables([(object) ['NAME' => 'USERS']]);
+
+        $this->assertSame('users', $tables[0]['name']);
+
+        $views = $processor->processViews([(object) ['NAME' => 'ACTIVE_USERS', 'SCHEMA' => null, 'DEFINITION' => 'select 1']]);
+
+        $this->assertSame('active_users', $views[0]['name']);
+    }
 }
