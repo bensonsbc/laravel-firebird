@@ -384,4 +384,4 @@ DB_PORT=3055 vendor/bin/phpunit
 
 Para dialeto 1, exporte `DB_DIALECT=1` apontando para um banco em dialeto 1.
 
-O CI (GitHub Actions) roda a suíte contra Firebird 3, 4 e 5 em PHP 8.3 e 8.4.
+O CI (GitHub Actions) roda a suíte contra Firebird 3, 4 e 5 em PHP 8.3, 8.4 e 8.5.
