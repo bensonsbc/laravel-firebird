@@ -18,6 +18,18 @@ class QueryTest extends TestCase
     use MigrateDatabase;
 
     #[Test]
+    public function it_checks_exists_with_bindings_in_the_projection_and_order()
+    {
+        $query = DB::table('RDB$DATABASE')->selectRaw('cast(? as integer) as PROBE', [10])
+            ->whereRaw('1 = ?', [1])->orderByRaw('1 + cast(? as integer)', [20]);
+
+        $this->assertTrue($query->exists());
+        $this->assertSame([10, 1, 20], $query->getBindings());
+        $this->assertFalse(DB::table('RDB$DATABASE')->selectRaw('cast(? as integer) as PROBE', [10])
+            ->whereRaw('1 = ?', [0])->orderByRaw('1 + cast(? as integer)', [20])->exists());
+    }
+
+    #[Test]
     public function it_has_the_correct_connection()
     {
         $this->assertEquals('firebird', DB::getDefaultConnection());

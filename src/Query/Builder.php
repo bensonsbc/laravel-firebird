@@ -300,8 +300,14 @@ class Builder extends BaseBuilder
     {
         $this->applyBeforeQueryCallbacks();
 
+        // The non-union grammar replaces the projection and removes ordering.
+        // Union queries keep their original SQL inside a derived table.
+        $bindings = $this->unions
+            ? $this->getBindings()
+            : $this->cloneWithoutBindings(['select', 'order'])->getBindings();
+
         $results = $this->connection->select(
-            $this->grammar->compileExists($this), $this->getBindings(), ! $this->useWritePdo
+            $this->grammar->compileExists($this), $bindings, ! $this->useWritePdo
         );
 
         if (! isset($results[0])) {
