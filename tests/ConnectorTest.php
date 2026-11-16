@@ -48,7 +48,26 @@ class ConnectorTest extends TestCase
     }
 
     #[Test]
-    public function it_forces_lowercase_result_columns()
+    public function it_keeps_natural_result_column_case_by_default()
+    {
+        $this->assertSame(PDO::CASE_NATURAL, $this->columnCaseFor([]));
+    }
+
+    #[Test]
+    public function it_applies_the_configured_result_column_case()
+    {
+        $this->assertSame(PDO::CASE_NATURAL, $this->columnCaseFor(['column_case' => 'natural']));
+        $this->assertSame(PDO::CASE_LOWER, $this->columnCaseFor(['column_case' => 'lower']));
+        $this->assertSame(PDO::CASE_UPPER, $this->columnCaseFor(['column_case' => 'upper']));
+    }
+
+    #[Test]
+    public function it_falls_back_to_natural_case_for_unknown_values()
+    {
+        $this->assertSame(PDO::CASE_NATURAL, $this->columnCaseFor(['column_case' => 'unknown']));
+    }
+
+    private function columnCaseFor(array $config): int
     {
         $connection = new class
         {
@@ -72,9 +91,9 @@ class ConnectorTest extends TestCase
             }
         };
 
-        $connector->connect(['database' => 'database.fdb']);
+        $connector->connect(['database' => 'database.fdb'] + $config);
 
-        $this->assertSame(PDO::CASE_LOWER, $connection->attributes[PDO::ATTR_CASE]);
+        return $connection->attributes[PDO::ATTR_CASE];
     }
 
     private function dsn(array $config): string
