@@ -132,7 +132,8 @@ class FirebirdGrammar extends Grammar
      */
     protected function wrapIdentifier($value)
     {
-        if ($this->isAlreadyQuoted($value) || $this->looksLikeFunctionCall($value)) {
+        if ($this->isAlreadyQuoted($value)
+            || ($this->allowsFunctionIdentifiers() && $this->looksLikeFunctionCall($value))) {
             return $value;
         }
 
@@ -143,6 +144,22 @@ class FirebirdGrammar extends Grammar
         }
 
         return $this->quoteIdentifier($value);
+    }
+
+    /**
+     * Determine whether identifiers shaped like function calls are passed
+     * through unquoted.
+     *
+     * Enabled by default for backwards compatibility. Applications that build
+     * column names from user input (sortable columns, dynamic selects) should
+     * turn it off with `'function_identifiers' => false` and use raw
+     * expressions for functions, so every identifier is quoted.
+     *
+     * @return bool
+     */
+    protected function allowsFunctionIdentifiers()
+    {
+        return $this->connection->getConfig('function_identifiers') !== false;
     }
 
     /**

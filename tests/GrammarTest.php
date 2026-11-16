@@ -482,6 +482,44 @@ class GrammarTest extends TestCase
         $this->assertSame('select * from CLIENTE where CLIENTEID in (?, ?, ?)', $sql);
     }
 
+    #[Test]
+    public function it_passes_function_shaped_identifiers_through_by_default()
+    {
+        $connection = $this->makeConnection();
+
+        $sql = $connection->table('cliente')->select('upper(nome)')->orderBy('lower(nome)')->toSql();
+
+        $this->assertSame('select upper(nome) from "cliente" order by lower(nome) asc', $sql);
+    }
+
+    #[Test]
+    public function it_can_quote_function_shaped_identifiers()
+    {
+        $connection = $this->makeConnection(['function_identifiers' => false]);
+
+        $sql = $connection->table('cliente')
+            ->select('nome')
+            ->orderBy('coalesce(senha, (select first 1 senha from usuarios))')
+            ->toSql();
+
+        // With the passthrough disabled the value is one quoted identifier, as in
+        // the stock Laravel grammars: it cannot inject a function or a subquery.
+        $this->assertSame(
+            'select "nome" from "cliente" order by "coalesce(senha, (select first 1 senha from usuarios))" asc',
+            $sql
+        );
+    }
+
+    #[Test]
+    public function it_still_accepts_raw_expressions_when_function_identifiers_are_disabled()
+    {
+        $connection = $this->makeConnection(['function_identifiers' => false]);
+
+        $sql = $connection->table('cliente')->selectRaw('upper(nome) as nome')->orderByRaw('lower(nome)')->toSql();
+
+        $this->assertSame('select upper(nome) as nome from "cliente" order by lower(nome)', $sql);
+    }
+
     protected function makeConnection(array $config = [])
     {
         return new FirebirdConnection(
