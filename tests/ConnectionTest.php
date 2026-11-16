@@ -272,4 +272,56 @@ class ConnectionTest extends TestCase
 
         $this->assertSame(0, $connection->transactionLevel());
     }
+
+    #[Test]
+    public function it_restores_autocommit_when_the_outer_commit_fails()
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('inTransaction')->willReturn(false);
+        $pdo->expects($this->once())->method('beginTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('commit')->willThrowException(new RuntimeException('Commit failed.'));
+        $pdo->expects($this->exactly(2))
+            ->method('setAttribute')
+            ->willReturnMap([
+                [PDO::ATTR_AUTOCOMMIT, false, true],
+                [PDO::ATTR_AUTOCOMMIT, true, true],
+            ]);
+
+        $connection = new FirebirdConnection($pdo);
+
+        $connection->beginTransaction();
+
+        try {
+            $connection->commit();
+            $this->fail('Commit failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Commit failed.', $exception->getMessage());
+        }
+    }
+
+    #[Test]
+    public function it_restores_autocommit_when_the_commit_of_a_transaction_callback_fails()
+    {
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('inTransaction')->willReturn(false);
+        $pdo->expects($this->once())->method('beginTransaction')->willReturn(true);
+        $pdo->expects($this->once())->method('commit')->willThrowException(new RuntimeException('Commit failed.'));
+        $pdo->expects($this->exactly(2))
+            ->method('setAttribute')
+            ->willReturnMap([
+                [PDO::ATTR_AUTOCOMMIT, false, true],
+                [PDO::ATTR_AUTOCOMMIT, true, true],
+            ]);
+
+        $connection = new FirebirdConnection($pdo);
+
+        try {
+            $connection->transaction(fn () => 'never returned');
+            $this->fail('Commit failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Commit failed.', $exception->getMessage());
+        }
+
+        $this->assertSame(0, $connection->transactionLevel());
+    }
 }
