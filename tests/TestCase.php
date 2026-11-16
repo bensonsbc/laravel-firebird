@@ -39,6 +39,9 @@ class TestCase extends OrchestraTestCase
             'dialect' => env('DB_DIALECT'),
             'quote_identifiers' => env('DB_DIALECT') !== '1',
             'uppercase_identifiers' => env('DB_DIALECT') === '1',
+            // Dialect 1 cannot quote aliases, so results come back in uppercase with
+            // the natural column case; the suite reads lowercase properties.
+            'column_case' => env('DB_DIALECT') === '1' ? 'lower' : 'natural',
         ]);
     }
 }

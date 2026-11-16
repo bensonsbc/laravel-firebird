@@ -19,6 +19,8 @@ class TransactionTest extends TestCase
         if ((string) env('DB_DIALECT') === '1') {
             config()->set('database.connections.firebird.quote_identifiers', false);
             config()->set('database.connections.firebird.uppercase_identifiers', true);
+            // These tests read the uppercase column names Firebird returns.
+            config()->set('database.connections.firebird.column_case', 'natural');
         }
 
         try {

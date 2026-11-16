@@ -8,6 +8,21 @@ use Illuminate\Database\Query\Processors\Processor;
 class FirebirdProcessor extends Processor
 {
     /**
+     * Normalize a metadata row to an array with lowercase keys.
+     *
+     * The metadata queries alias their columns in lowercase, but dialect 1
+     * cannot quote those aliases, so Firebird returns them in uppercase when
+     * the connection keeps the natural column case (the default).
+     *
+     * @param  object|array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    protected function normalizeRow($row)
+    {
+        return array_change_key_case((array) $row, CASE_LOWER);
+    }
+
+    /**
      * Process the results of a tables query.
      *
      * @param  list<array<string, mixed>>  $results
@@ -16,7 +31,7 @@ class FirebirdProcessor extends Processor
     public function processTables($results)
     {
         return array_map(function ($table) {
-            $table = parent::processTables([$table])[0];
+            $table = parent::processTables([$this->normalizeRow($table)])[0];
             $table['name'] = strtolower($table['name']);
             $table['schema_qualified_name'] = strtolower($table['schema_qualified_name']);
 
@@ -33,7 +48,7 @@ class FirebirdProcessor extends Processor
     public function processViews($results)
     {
         return array_map(function ($view) {
-            $view = parent::processViews([$view])[0];
+            $view = parent::processViews([$this->normalizeRow($view)])[0];
             $view['name'] = strtolower($view['name']);
             $view['schema_qualified_name'] = $view['schema'] ? $view['schema'].'.'.$view['name'] : $view['name'];
 
@@ -50,7 +65,7 @@ class FirebirdProcessor extends Processor
     public function processColumns($results)
     {
         return array_map(function ($column) {
-            $column = (array) $column;
+            $column = $this->normalizeRow($column);
             $type = $this->processColumnType($column);
 
             return [
@@ -153,7 +168,7 @@ class FirebirdProcessor extends Processor
     public function processIndexes($results)
     {
         return array_map(function ($index) {
-            $index = (array) $index;
+            $index = $this->normalizeRow($index);
 
             return [
                 'name' => strtolower($index['name']),
@@ -174,7 +189,7 @@ class FirebirdProcessor extends Processor
     public function processForeignKeys($results)
     {
         return array_map(function ($foreignKey) {
-            $foreignKey = (array) $foreignKey;
+            $foreignKey = $this->normalizeRow($foreignKey);
 
             return [
                 'name' => strtolower($foreignKey['name']),
