@@ -47,6 +47,7 @@ Configure a conexão em `config/database.php`:
 | `pagination_mode` | `first_skip` | `first_skip` = `SELECT FIRST n SKIP m`; `offset_fetch` = `OFFSET ... FETCH`. |
 | `dialect` | — | Defina `1` para bancos em dialeto 1 (ajusta tipos, datas e desliga identity). |
 | `role` | — | Role SQL enviada na conexão. |
+| `column_case` | `natural` | Caixa dos nomes de coluna nos resultados: `natural` (como o Firebird devolve: maiúsculas para identificadores sem aspas), `lower` ou `upper`. |
 | `server_version` | autodetectada | Fixa a versão do servidor (ex.: `'3.0.10'`), evitando a detecção via conexão. |
 | `index_names` | — | Templates de nomenclatura de PK/FK/unique/index. |
 
@@ -103,6 +104,7 @@ Configure the connection in `config/database.php`:
 | `pagination_mode` | `first_skip` | `first_skip` = `SELECT FIRST n SKIP m`; `offset_fetch` = `OFFSET ... FETCH`. |
 | `dialect` | — | Set `1` for dialect-1 databases (adjusts types, dates, disables identity). |
 | `role` | — | SQL role sent on connect. |
+| `column_case` | `natural` | Case of result column names: `natural` (as Firebird returns them: uppercase for unquoted identifiers), `lower` or `upper`. |
 | `server_version` | auto-detected | Pin the server version (e.g. `'3.0.10'`) to skip detection over the connection. |
 | `index_names` | — | Naming templates for PK/FK/unique/index. |
 

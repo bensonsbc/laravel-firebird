@@ -86,13 +86,20 @@ class QueryTest extends TestCase
 
         $this->assertCount(3, (array) $result);
 
-        $this->assertObjectHasProperty('user_name', $result);
-        $this->assertObjectHasProperty('user_city', $result);
-        $this->assertObjectHasProperty('user_country', $result);
+        // With the default natural column case, quoted aliases (dialect 3) come
+        // back exactly as written; dialect 1 aliases are unquoted, so Firebird
+        // returns them in uppercase.
+        [$name, $city, $country] = (string) env('DB_DIALECT') === '1'
+            ? ['USER_NAME', 'USER_CITY', 'USER_COUNTRY']
+            : ['USER_NAME', 'user_city', 'User_Country'];
 
-        $this->assertEquals('Anna', $result->user_name);
-        $this->assertEquals('Sydney', $result->user_city);
-        $this->assertEquals('Australia', $result->user_country);
+        $this->assertObjectHasProperty($name, $result);
+        $this->assertObjectHasProperty($city, $result);
+        $this->assertObjectHasProperty($country, $result);
+
+        $this->assertEquals('Anna', $result->{$name});
+        $this->assertEquals('Sydney', $result->{$city});
+        $this->assertEquals('Australia', $result->{$country});
     }
 
     #[Test]

@@ -21,7 +21,9 @@ class ConnectionTest extends TestCase
         $connection = DB::connection();
 
         $expectedVersion = $connection->selectOne('select rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as version from rdb$database');
-        $expectedVersion = $expectedVersion->version;
+        // The alias case depends on the `column_case` option (natural by default,
+        // i.e. uppercase for unquoted identifiers), so read the single column by position.
+        $expectedVersion = array_values((array) $expectedVersion)[0];
 
         $version = $connection->getServerVersion();
 
