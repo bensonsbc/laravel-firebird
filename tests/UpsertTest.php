@@ -38,6 +38,29 @@ class UpsertTest extends TestCase
     }
 
     #[Test]
+    public function it_inserts_and_updates_upsert_source_expressions()
+    {
+        DB::table('UPS_USERS')->insert($this->userAttributes(['ID' => 1]));
+
+        DB::table('UPS_USERS')->upsert([
+            $this->userAttributes([
+                'ID' => 1,
+                'NAME' => DB::raw("upper('updated expression')"),
+                'UPDATED_AT' => DB::raw('CURRENT_TIMESTAMP'),
+            ]),
+            $this->userAttributes([
+                'ID' => 2,
+                'NAME' => DB::raw("upper('inserted expression')"),
+                'UPDATED_AT' => DB::raw('CURRENT_TIMESTAMP'),
+            ]),
+        ], ['ID'], ['NAME', 'UPDATED_AT']);
+
+        $this->assertDatabaseHas('UPS_USERS', ['ID' => 1, 'NAME' => 'UPDATED EXPRESSION']);
+        $this->assertDatabaseHas('UPS_USERS', ['ID' => 2, 'NAME' => 'INSERTED EXPRESSION']);
+        $this->assertSame(2, DB::table('UPS_USERS')->whereNotNull('UPDATED_AT')->count());
+    }
+
+    #[Test]
     public function it_inserts_and_updates_rows_with_upsert()
     {
         DB::table('UPS_USERS')->insert($this->userAttributes([
