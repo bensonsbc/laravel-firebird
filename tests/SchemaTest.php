@@ -401,6 +401,62 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_does_not_reset_generators_shared_with_other_objects_on_truncate()
+    {
+        // Legacy schemas often share one sequence between several tables (audit
+        // or replication triggers, a common id source...). Truncating one table
+        // must not rewind a generator that other objects still depend on.
+        if ((string) env('DB_DIALECT') === '1') {
+            $this->markTestSkipped('The helper objects of this test are created with dialect 3 syntax.');
+        }
+
+        $drop = function () {
+            foreach (['foo_shared_a', 'foo_shared_b'] as $table) {
+                Schema::dropIfExists($table);
+            }
+
+            DB::statement(
+                'execute block as begin if (exists(select 1 from rdb$generators where rdb$generator_name = \'FOO_SHARED_GEN\')) '
+                .'then execute statement \'drop generator FOO_SHARED_GEN\'; end'
+            );
+        };
+
+        $drop();
+
+        try {
+            foreach (['foo_shared_a', 'foo_shared_b'] as $table) {
+                Schema::create($table, function (Blueprint $table) {
+                    $table->integer('id')->nullable();
+                    $table->string('name');
+                });
+            }
+
+            DB::statement('create generator FOO_SHARED_GEN');
+            DB::statement('set generator FOO_SHARED_GEN to 500');
+
+            foreach (['foo_shared_a', 'foo_shared_b'] as $table) {
+                DB::statement(
+                    'create trigger "'.$table.'_bi" for "'.$table.'" active before insert position 0 as '
+                    .'begin if (new."id" is null) then new."id" = gen_id(FOO_SHARED_GEN, 1); end'
+                );
+            }
+
+            DB::table('foo_shared_a')->insert(['name' => 'A1']);
+            DB::table('foo_shared_b')->insert(['name' => 'B1']);
+
+            DB::table('foo_shared_a')->truncate();
+
+            $current = (array) DB::selectOne('select gen_id(FOO_SHARED_GEN, 0) as "value" from rdb$database');
+
+            $this->assertSame(502, (int) $current['value']);
+            $this->assertSame(0, DB::table('foo_shared_a')->count());
+            $this->assertSame(1, DB::table('foo_shared_b')->count());
+        } finally {
+            $drop();
+        }
+    }
+
+    #[Test]
     public function it_can_truncate_tables_and_restart_custom_auto_increment_generators()
     {
         $table = DB::getQueryGrammar()->wrapTable('foo_custom_truncate');
