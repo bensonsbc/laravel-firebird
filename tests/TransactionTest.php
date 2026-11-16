@@ -32,6 +32,22 @@ class TransactionTest extends TestCase
     }
 
     #[Test]
+    public function it_runs_database_callbacks_after_a_manual_commit()
+    {
+        $connection = DB::connection();
+        $connection->beginTransaction();
+        DB::table('TX_USERS')->insert($this->userAttributes(['ID' => 605, 'EMAIL' => 'manual-commit@example.com']));
+        $connection->afterCommit(fn () => DB::table('TX_USERS')->insert(
+            $this->userAttributes(['ID' => 606, 'EMAIL' => 'manual-after-commit@example.com'])
+        ));
+
+        $connection->commit();
+
+        $this->assertSame([605, 606], $this->idsGravados());
+        $this->assertSame(0, $connection->transactionLevel());
+    }
+
+    #[Test]
     public function it_rolls_back_an_insert()
     {
         $connection = DB::connection();

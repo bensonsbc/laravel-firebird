@@ -267,15 +267,28 @@ class FirebirdConnection extends DatabaseConnection
      */
     public function commit()
     {
-        $isOuterTransaction = $this->transactionLevel() === 1;
+        if ($this->transactionLevel() === 1) {
+            $this->fireConnectionEvent('committing');
 
-        try {
-            parent::commit();
-        } finally {
-            if ($isOuterTransaction) {
+            try {
+                $this->getPdo()->commit();
+            } finally {
+                // Callbacks and committed listeners may issue queries, so restore
+                // autocommit before they run, not after parent::commit() returns.
                 $this->getPdo()->setAttribute(PDO::ATTR_AUTOCOMMIT, true);
             }
         }
+
+        [$levelBeingCommitted, $this->transactions] = [
+            $this->transactions,
+            max(0, $this->transactions - 1),
+        ];
+
+        $this->transactionsManager?->commit(
+            $this->getName(), $levelBeingCommitted, $this->transactions
+        );
+
+        $this->fireConnectionEvent('committed');
     }
 
     /**
