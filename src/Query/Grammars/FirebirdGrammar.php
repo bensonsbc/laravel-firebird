@@ -921,6 +921,10 @@ class FirebirdGrammar extends Grammar
      */
     protected function compileTypedSourceParameter($value)
     {
+        if ($this->isExpression($value)) {
+            return $this->getValue($value);
+        }
+
         if ($value === null) {
             return 'cast(? as varchar(255))';
         }
