@@ -182,7 +182,7 @@ DB_PORT=3055 vendor/bin/phpunit
 
 Para dialeto 1, exporte `DB_DIALECT=1` apontando para um banco em dialeto 1. / For dialect 1, export `DB_DIALECT=1` pointing at a dialect-1 database.
 
-O CI roda a suíte contra Firebird 3, 4 e 5 em PHP 8.3 e 8.4. / CI runs the suite against Firebird 3, 4 and 5 on PHP 8.3 and 8.4.
+O CI roda a suíte contra Firebird 3, 4 e 5 em PHP 8.3, 8.4 e 8.5. / CI runs the suite against Firebird 3, 4 and 5 on PHP 8.3, 8.4 and 8.5.
 
 ## Créditos / Credits
 
