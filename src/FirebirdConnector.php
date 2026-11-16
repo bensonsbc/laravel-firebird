@@ -55,6 +55,17 @@ class FirebirdConnector extends Connector implements ConnectorInterface
         $role = (string) ($config['role'] ?? '');
         $dialect = (string) ($config['dialect'] ?? '');
 
+        // The DSN has no escaping mechanism: a ';' would start a new parameter and
+        // a control character would corrupt it, so reject them instead of
+        // silently connecting with a different configuration.
+        foreach (compact('database', 'host', 'port', 'charset', 'role', 'dialect') as $name => $value) {
+            if (preg_match('/[;\x00-\x1F\x7F]/', $value)) {
+                throw new InvalidArgumentException(
+                    "Firebird connection option [{$name}] contains an invalid character (';' or a control character)."
+                );
+            }
+        }
+
         $databaseName = $database;
 
         if ($host !== '') {

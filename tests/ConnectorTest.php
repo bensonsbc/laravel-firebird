@@ -48,6 +48,23 @@ class ConnectorTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_dsn_options_that_would_inject_extra_parameters()
+    {
+        foreach (['database', 'host', 'port', 'charset', 'role', 'dialect'] as $option) {
+            try {
+                $this->dsn(['database' => 'database.fdb', $option => "x;role=RDB\$ADMIN"]);
+                $this->fail("The [{$option}] option accepted a ';'.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertStringContainsString("[{$option}]", $exception->getMessage());
+            }
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->dsn(['database' => "database.fdb\nrole=RDB\$ADMIN"]);
+    }
+
+    #[Test]
     public function it_forces_lowercase_result_columns()
     {
         $connection = new class
