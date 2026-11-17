@@ -985,6 +985,24 @@ class QueryTest extends TestCase
     }
 
     #[Test]
+    public function it_can_aggregate_avg_of_distinct_values()
+    {
+        Order::factory()
+            ->count(5)
+            ->state(new Sequence(
+                ['price' => 10],
+                ['price' => 10],
+                ['price' => 10],
+                ['price' => 20],
+                ['price' => 30],
+            ))
+            ->create();
+
+        $this->assertEquals(16, DB::table('orders')->avg('price'));
+        $this->assertEquals(20, DB::table('orders')->distinct()->avg('price'));
+    }
+
+    #[Test]
     public function it_can_aggregate_sum()
     {
         Order::factory()

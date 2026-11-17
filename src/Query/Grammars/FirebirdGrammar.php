@@ -639,6 +639,11 @@ class FirebirdGrammar extends Grammar
         if ((string) $this->connection->getConfig('dialect') === '1' && $aggregate['function'] === 'avg') {
             $column = $this->columnize($aggregate['columns']);
 
+            // Keep DISTINCT inside the aggregate, as the base grammar does.
+            if ($query->distinct && $column !== '*') {
+                $column = 'distinct '.$column;
+            }
+
             return 'select floor(avg('.$column.' * 1.0000)) as aggregate';
         }
 
