@@ -884,6 +884,41 @@ class FirebirdGrammar extends Grammar
     }
 
     /**
+     * Get the value placeholder for a binding.
+     *
+     * Laravel binds a DateTimeInterface as a "Y-m-d H:i:s" string. Firebird
+     * (dialect 3) infers the parameter type from the other side of the
+     * statement, so that string fails with a conversion error (-303) against a
+     * DATE column. Declaring the parameter as TIMESTAMP lets Firebird convert
+     * it, truncating the time when the target is a DATE.
+     *
+     * @param  mixed  $value
+     * @return string
+     */
+    public function parameter($value)
+    {
+        if ($this->isTimestampParameter($value)) {
+            return 'cast(? as timestamp)';
+        }
+
+        return parent::parameter($value);
+    }
+
+    /**
+     * Determine if a binding must be declared as a TIMESTAMP parameter.
+     *
+     * Dialect 1 has no separate DATE type and already accepts the string.
+     *
+     * @param  mixed  $value
+     * @return bool
+     */
+    protected function isTimestampParameter($value)
+    {
+        return $value instanceof \DateTimeInterface
+            && (string) $this->connection->getConfig('dialect') !== '1';
+    }
+
+    /**
      * Compile Firebird's derived source table for a merge statement.
      *
      * @param  array  $values
@@ -921,6 +956,10 @@ class FirebirdGrammar extends Grammar
      */
     protected function compileTypedSourceParameter($value)
     {
+        if ($this->isTimestampParameter($value)) {
+            return 'cast(? as timestamp)';
+        }
+
         if ($value === null) {
             return 'cast(? as varchar(255))';
         }

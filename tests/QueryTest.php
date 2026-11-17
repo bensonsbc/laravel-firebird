@@ -7,8 +7,11 @@ use Benson\LaravelFirebird\Tests\Support\Models\Order;
 use Benson\LaravelFirebird\Tests\Support\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -982,6 +985,37 @@ class QueryTest extends TestCase
         $price = DB::table('orders')->avg('price');
 
         $this->assertEquals((int) 52.6, $price);
+    }
+
+    #[Test]
+    public function it_writes_and_compares_datetime_objects_against_a_date_column()
+    {
+        Schema::dropIfExists('foo_date_column');
+
+        try {
+            Schema::create('foo_date_column', function (Blueprint $table) {
+                $table->integer('id');
+                $table->date('fecha');
+            });
+
+            $moment = Carbon::parse('2026-11-16 15:45:10');
+
+            // A Carbon instance carries a time that a DATE column cannot hold.
+            // Firebird (dialect 3) used to reject the bound string with -303.
+            DB::table('foo_date_column')->insert(['id' => 1, 'fecha' => $moment]);
+            DB::table('foo_date_column')->insert(['id' => 2, 'fecha' => '2026-11-17']);
+            DB::table('foo_date_column')->where('id', 2)->update(['fecha' => $moment]);
+            DB::table('foo_date_column')->upsert([['id' => 3, 'fecha' => $moment]], ['id'], ['fecha']);
+
+            $this->assertSame(3, DB::table('foo_date_column')->whereDate('fecha', $moment)->count());
+            $this->assertSame(3, DB::table('foo_date_column')->whereBetween('fecha', [
+                $moment->copy()->startOfDay(),
+                $moment->copy()->endOfDay(),
+            ])->count());
+            $this->assertStringStartsWith('2026-11-16', (string) DB::table('foo_date_column')->where('id', 1)->value('fecha'));
+        } finally {
+            Schema::dropIfExists('foo_date_column');
+        }
     }
 
     #[Test]
