@@ -305,6 +305,32 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_reports_computed_columns_as_generated_in_the_introspection()
+    {
+        Schema::dropIfExists('foo_computed_info');
+
+        try {
+            $expression = config('database.connections.firebird.uppercase_identifiers')
+                ? 'CAST(QTD * 2 AS INTEGER)'
+                : 'cast("qtd" * 2 as integer)';
+
+            Schema::create('foo_computed_info', function (Blueprint $table) use ($expression) {
+                $table->integer('qtd');
+                $table->integer('dobro')->virtualAs($expression);
+            });
+
+            $columns = collect(Schema::getColumns('foo_computed_info'))->keyBy('name');
+
+            $this->assertNull($columns['qtd']['generation']);
+            $this->assertSame('virtual', $columns['dobro']['generation']['type']);
+            $this->assertStringContainsString('qtd', strtolower($columns['dobro']['generation']['expression']));
+            $this->assertStringStartsNotWith('(', $columns['dobro']['generation']['expression']);
+        } finally {
+            Schema::dropIfExists('foo_computed_info');
+        }
+    }
+
+    #[Test]
     public function it_creates_temporary_tables_as_global_temporary()
     {
         $table = DB::getQueryGrammar()->wrapTable('foo_temp');
