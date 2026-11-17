@@ -62,9 +62,71 @@ class FirebirdProcessor extends Processor
                 'default' => $this->processColumnDefault($column['default_source'] ?? null),
                 'auto_increment' => isset($column['identity_type']),
                 'comment' => $column['comment'] ?? null,
-                'generation' => null,
+                'generation' => $this->processColumnGeneration($column['computed_source'] ?? null),
             ];
         }, $results);
+    }
+
+    /**
+     * Describe a computed column from its stored source.
+     *
+     * Firebird computes these columns on read, so they are always virtual.
+     *
+     * @param  string|null  $source
+     * @return array{type: string, expression: string}|null
+     */
+    protected function processColumnGeneration($source)
+    {
+        if ($source === null || trim((string) $source) === '') {
+            return null;
+        }
+
+        $expression = trim(preg_replace('/^\s*computed\s+(by\s+)?/i', '', trim((string) $source)));
+
+        if ($this->isWrappedInParentheses($expression)) {
+            $expression = trim(substr($expression, 1, -1));
+        }
+
+        return ['type' => 'virtual', 'expression' => $expression];
+    }
+
+    /**
+     * Determine if one pair of parentheses encloses the whole expression,
+     * so "(a) + (b)" is not mistaken for a wrapped expression.
+     *
+     * @param  string  $expression
+     * @return bool
+     */
+    protected function isWrappedInParentheses($expression)
+    {
+        $length = strlen($expression);
+
+        if ($length < 2 || $expression[0] !== '(' || $expression[$length - 1] !== ')') {
+            return false;
+        }
+
+        $depth = 0;
+        $quote = null;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+
+            if ($quote !== null) {
+                $quote = $char === $quote ? null : $quote;
+
+                continue;
+            }
+
+            if ($char === "'" || $char === '"') {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $depth++;
+            } elseif ($char === ')' && --$depth === 0 && $i < $length - 1) {
+                return false;
+            }
+        }
+
+        return $depth === 0;
     }
 
     /**
