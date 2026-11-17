@@ -88,6 +88,38 @@ class SchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_gets_views_with_definitions_longer_than_8191_characters()
+    {
+        $view = DB::getQueryGrammar()->wrapTable('foo_long_view');
+        $padding = str_repeat('x', 9000);
+
+        try {
+            DB::statement(sprintf(
+                "create view %s as select %s, '%s' as %s from %s",
+                $view,
+                DB::getQueryGrammar()->wrap('id'),
+                $padding,
+                DB::getQueryGrammar()->wrap('pad'),
+                DB::getQueryGrammar()->wrapTable('users'),
+            ));
+
+            $definition = collect(Schema::getViews())
+                ->firstWhere('name', 'foo_long_view')['definition'] ?? null;
+
+            $this->assertNotNull($definition);
+            $this->assertStringContainsString($padding, $definition);
+        } finally {
+            try {
+                DB::statement('drop view '.$view);
+            } catch (QueryException) {
+                //
+            }
+
+            DB::disconnect();
+        }
+    }
+
+    #[Test]
     public function it_can_drop_all_views()
     {
         $firstView = DB::getQueryGrammar()->wrapTable('foo_first_view');
