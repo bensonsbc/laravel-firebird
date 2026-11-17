@@ -275,6 +275,12 @@ class Builder extends BaseBuilder
      */
     protected function dateToNumber($value)
     {
+        // Keep only the date part: a string such as "2026-11-16 10:30:00"
+        // would otherwise become 20261116103000 and never match.
+        if (preg_match('/^\s*(\d{4})-?(\d{2})-?(\d{2})/', (string) $value, $parts)) {
+            return (int) ($parts[1].$parts[2].$parts[3]);
+        }
+
         return (int) preg_replace('/\D/', '', (string) $value);
     }
 
