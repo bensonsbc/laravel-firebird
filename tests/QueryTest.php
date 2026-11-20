@@ -7,8 +7,10 @@ use Benson\LaravelFirebird\Tests\Support\Models\Order;
 use Benson\LaravelFirebird\Tests\Support\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -982,6 +984,53 @@ class QueryTest extends TestCase
         $price = DB::table('orders')->avg('price');
 
         $this->assertEquals((int) 52.6, $price);
+    }
+
+    #[Test]
+    public function it_upserts_more_rows_than_a_single_merge_statement_can_hold()
+    {
+        Schema::dropIfExists('foo_upsert_bulk');
+
+        try {
+            Schema::create('foo_upsert_bulk', function (Blueprint $table) {
+                $table->integer('id')->primary();
+                $table->string('nombre', 40);
+                $table->integer('cantidad');
+            });
+
+            $rows = fn (int $from, int $count, string $prefix) => array_map(
+                fn ($i) => ['id' => $i, 'nombre' => "{$prefix} {$i}", 'cantidad' => $i * 2],
+                range($from, $from + $count - 1)
+            );
+
+            // A MERGE source with one SELECT per row is limited to 256 contexts
+            // by Firebird, so the rows must be split into several statements.
+            DB::table('foo_upsert_bulk')->upsert($rows(1, 700, 'nuevo'), ['id'], ['nombre', 'cantidad']);
+
+            $this->assertSame(700, DB::table('foo_upsert_bulk')->count());
+
+            DB::connection()->enableQueryLog();
+
+            $affected = DB::table('foo_upsert_bulk')->upsert($rows(401, 600, 'cambiado'), ['id'], ['nombre']);
+
+            $merges = collect(DB::connection()->getQueryLog())
+                ->filter(fn ($query) => str_starts_with($query['query'], 'merge into'))
+                ->count();
+
+            DB::connection()->disableQueryLog();
+
+            $this->assertSame(3, $merges);
+            $this->assertSame(600, $affected);
+            $this->assertSame(1000, DB::table('foo_upsert_bulk')->count());
+            $this->assertSame('nuevo 400', DB::table('foo_upsert_bulk')->where('id', 400)->value('nombre'));
+            $this->assertSame('cambiado 401', DB::table('foo_upsert_bulk')->where('id', 401)->value('nombre'));
+            $this->assertSame('cambiado 1000', DB::table('foo_upsert_bulk')->where('id', 1000)->value('nombre'));
+            // Only the listed column is updated; the others keep their value.
+            $this->assertSame(802, (int) DB::table('foo_upsert_bulk')->where('id', 401)->value('cantidad'));
+        } finally {
+            DB::connection()->disableQueryLog();
+            Schema::dropIfExists('foo_upsert_bulk');
+        }
     }
 
     #[Test]
