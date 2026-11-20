@@ -59,6 +59,64 @@ class Builder extends BaseBuilder
     }
 
     /**
+     * Insert new records or update the existing ones.
+     *
+     * The MERGE source has one SELECT per row, and Firebird limits a statement
+     * to 256 contexts and 32767 parameters. Larger sets are split into several
+     * MERGE statements that run inside one transaction.
+     *
+     * @param  array|string  $uniqueBy
+     * @return int
+     */
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null)
+    {
+        if ($uniqueBy === [] || $uniqueBy === '' || empty($values) || $update === []) {
+            return parent::upsert($values, $uniqueBy, $update);
+        }
+
+        $rows = is_array(Arr::first($values)) ? array_values($values) : [$values];
+
+        $first = Arr::first($rows);
+        $chunkSize = $this->upsertChunkSize(count($first));
+
+        if (count($rows) <= $chunkSize) {
+            return parent::upsert($values, $uniqueBy, $update);
+        }
+
+        // Derive the update columns once, as the parent does from the first
+        // row, so every chunk updates the same columns.
+        if (is_null($update)) {
+            ksort($first);
+
+            $update = array_keys($first);
+        }
+
+        return $this->connection->transaction(function () use ($rows, $uniqueBy, $update, $chunkSize) {
+            $affected = 0;
+
+            foreach (array_chunk($rows, $chunkSize) as $chunk) {
+                $affected += parent::upsert($chunk, $uniqueBy, $update);
+            }
+
+            return $affected;
+        });
+    }
+
+    /**
+     * Get how many rows fit in one MERGE statement.
+     *
+     * Stays well under the 256 contexts (one per source row) and the 32767
+     * parameters Firebird allows in a statement.
+     *
+     * @param  int  $columns
+     * @return int
+     */
+    protected function upsertChunkSize($columns)
+    {
+        return max(1, min(200, intdiv(30000, max(1, $columns))));
+    }
+
+    /**
      * Insert new records into the database while ignoring duplicates.
      *
      * Rows that violate a unique constraint are skipped. Firebird rolls back
